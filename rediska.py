@@ -20,7 +20,7 @@ class Rediska(object):
         return self.data[0].keys()
 
     def count_of_objects(self):
-        return len(list(set(self.get_from_param('TrackNumber'))))
+        return len(set(self.get_from_param('TrackNumber')))
 
     def get_from_param(self, needed_param):
         result = []
