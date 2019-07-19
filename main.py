@@ -52,7 +52,9 @@ app.layout = html.Div(children=[
                     },
                     multiple=True
                 ),
-            html.Hr()
+            html.Hr(),
+            dcc.Input(id='sl', value='500', style={'display': 'none'}),
+            dcc.Input(id='clicks', value='0', style={'display': 'none'})
             ])
         ], style={'width': '70%', 'margin-left': '15%'})
 
@@ -71,13 +73,10 @@ def parse_contents(contents, filename):
         if 'csv' in filename:
             df = pd.read_csv(
                 io.StringIO(decoded.decode('utf-8')))
-        else:
-            return 1
+            return df.to_dict('records')
     except Exception as e:
         print(e)
-        return 1
-
-    return df.to_dict('records')
+    return 1
 
 
 @app.callback(Output('graph', 'figure'),
@@ -91,11 +90,23 @@ def update_output(count_of_points, n_clicks, list_of_contents, list_of_names):
     :param count_of_points: количество точек для генерации (рандомно)
     :param n_clicks: количество кликов на кнопку генерации
     :param list_of_contents: переменная для получения файла (контект)
+    :param last_file: последний загруженный файл
     :param list_of_names: переменная для получения файла (название)
     :return: график
     """
-    # TODO: сделать сброс и рандомную генерацию графика после загрузки файла (сейчас просто не работает)
-    if list_of_contents is not None and list_of_names is not None:
+    # TODO: сделать сброс и рандомную генерацию графика после загрузки файла
+    if dash.callback_context.triggered[0]['prop_id'] == 'slider.value' \
+            or dash.callback_context.triggered[0]['prop_id'] == 'button.n_clicks':
+        return {
+            'data': [{
+                'type': 'scatter',
+                'y': [random.randint(1, 10) for i in range(count_of_points)]
+            }],
+            'layout': {
+                'title': 'График (сгенерированный)'
+            }
+        }
+    elif list_of_contents is not None:
         content = [
             parse_contents(c, n) for c, n in
             zip(list_of_contents, list_of_names)]
@@ -109,16 +120,17 @@ def update_output(count_of_points, n_clicks, list_of_contents, list_of_names):
                     'title': 'График (из файла)'
                 }
         }
-    return {
-        'data': [{
-            'type': 'scatter',
-            'y': [random.randint(1, 10) for i in range(count_of_points)]
-        }],
-        'layout': {
-            'title': 'График (сгенерированный)'
+    else:
+        return {
+            'data': [{
+                'type': 'scatter',
+                'y': [random.randint(1, 10) for i in range(count_of_points)]
+            }],
+            'layout': {
+                'title': 'График (сгенерированный)'
+            }
         }
-    }
 
 
 if __name__ == '__main__':
-    app.run_server(debug=False)
+    app.run_server(debug=True)
