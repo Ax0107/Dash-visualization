@@ -94,7 +94,6 @@ def update_output(count_of_points, n_clicks, list_of_contents, list_of_names):
     :param list_of_names: переменная для получения файла (название)
     :return: график
     """
-    # TODO: сделать сброс и рандомную генерацию графика после загрузки файла
     if dash.callback_context.triggered[0]['prop_id'] == 'slider.value' \
             or dash.callback_context.triggered[0]['prop_id'] == 'button.n_clicks':
         return {
