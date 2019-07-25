@@ -1,26 +1,27 @@
 import dash_html_components as html
 import dash_core_components as dcc
+import dash_table
 
 
-def scatter_file():
+def scatter_table():
     return html.Div(children=[
+        table(),
         dcc.Graph(id='scatter'),
         html.Hr(),
-        file_uploarer()
     ])
 
 
-def bar_file():
+def bar_table():
     return html.Div(children=[
-        dcc.Graph(id='bar'),
+        table(),
         html.Hr(),
-        file_uploarer()
+        dcc.Graph(id='bar'),
     ])
 
 
 def file_uploarer():
     return html.Div(children=[
-            html.H4('Нарисовать график из файла CVS', style={'textAlign': 'center'}),
+            html.H4('Загрузить таблицу CVS', style={'textAlign': 'center'}),
             dcc.Upload(
                 id='upload-data',
                 children=html.Div([
@@ -36,6 +37,16 @@ def file_uploarer():
                     'borderRadius': '5px',
                     'textAlign': 'center',
                 },
-                multiple=True)
+                multiple=True,
+            )
+        ])
 
+
+def table():
+    return html.Div(children=[
+        file_uploarer(),
+        dash_table.DataTable(id='table', page_current=0,
+                             page_action='custom'),
+        dcc.Input(id='page-size', type='number', value='5'),
+        html.Div(id='div-out', style={'display': 'none'})
         ])

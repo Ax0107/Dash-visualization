@@ -9,11 +9,11 @@ server = flask.Flask(__name__)
 app = dash.Dash(__name__, server=server, external_stylesheets=external_stylesheets)
 
 # app.layout = layout.bar_file
-app.layout = layout.scatter_file
+app.layout = layout.scatter_table
 
 functions = []
 # for opts, funcs in callbacks.Callbacks("BarFile")():
-for opts, funcs in callbacks.Callbacks("ScatterFile")():
+for opts, funcs in callbacks.Callbacks("ScatterTable")():
     functions.append(app.callback(*opts)(funcs))
 
 
