@@ -8,12 +8,11 @@ external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 server = flask.Flask(__name__)
 app = dash.Dash(__name__, server=server, external_stylesheets=external_stylesheets)
 
-# app.layout = layout.bar_file
-app.layout = layout.scatter_table
 
+app.layout = layout.layout
 functions = []
-# for opts, funcs in callbacks.Callbacks("BarFile")():
-for opts, funcs in callbacks.Callbacks("ScatterTable")():
+
+for opts, funcs in callbacks.Callbacks("BasicLayout")():
     functions.append(app.callback(*opts)(funcs))
 
 

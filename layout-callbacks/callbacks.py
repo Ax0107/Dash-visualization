@@ -5,6 +5,7 @@ import base64
 import io
 import dash
 from ast import literal_eval
+import layout
 
 
 def parse_contents(contents, filename):
@@ -64,12 +65,13 @@ def table_load_selected(data, selected_rows):
     return ['']
 
 
-def plot_bar_from_table(pointss):
+def plot_bar_from_table(pointss, selected_bars, bar_color, bar_width, bar_type, figure, bar_selector_options):
     """
     Рисует Bar из выделенных данных таблицы
     :param pointss: dict полученный из div-out (см. table_load_selected)
     :return: bar-figure
     """
+    print('POINTS!', pointss)
     style = {'display': 'none'}
     points = [[0], [0]]
     if pointss:
@@ -91,6 +93,7 @@ def plot_bar_from_table(pointss):
                     points.append([])
                     points[columns[i['column']]].append(i['data'])
             style = {}
+            print(points)
     return {
            'data': [
                {'x': points[i], 'y': points[i + 1], 'name': '', 'type': 'bar'} for i in range(0, len(points), 2)
@@ -101,14 +104,24 @@ def plot_bar_from_table(pointss):
     }, style
 
 
-def plot_scatter_from_table(pointss):
+def plot_scatter_from_table(pointss, selected_lines, line_color, line_width, marker_color, marker_size,
+                            lines_type, figure, line_selector_options):
     """
-    Рисует Scatter из выделенных данных таблицы
+    Рисует Scatter из выделенных данных в таблице-CSV
     :param pointss: dict полученный из div-out (см. table_load_selected)
-    :return: scatter-figure
+    :return: graph-figure
     """
-    style = {'display': 'none'}
-    points = [0]
+    # Проверяем, был ли triggered из-за изменение настроек графика
+    if dash.callback_context.triggered[0]['prop_id'] not in 'div-out.children':
+        # Преобразование цвета в строку типа "rgba(0,0,0,0)"
+        try:
+            line_color = line_color['hex']
+            marker_color = marker_color['hex']
+        except TypeError:
+            line_color = line_color
+            marker_color = marker_color
+        return change_style_of_graph(selected_lines, line_color, line_width, marker_color, marker_size, lines_type, figure), {}, line_selector_options
+
     if pointss:
         # Дальше идёт преобразование данных к нужному типу
         pointss = literal_eval(pointss)
@@ -119,31 +132,40 @@ def plot_scatter_from_table(pointss):
         # дабы при выделении в таблице данных не с нулевого столбца, мы могли обращаться к points
         # по индексу 0, 1, 2 и т.д. (иначе, столбец = индекс и ловим IndexError)
         columns = dict(zip(list(columns), list(range(0, count))))
-        if 1:
-            points = []
-            for i in pointss:
-                try:
-                    points[columns[i['column']]].append(i['data'])
-                except IndexError:
-                    points.append([])
-                    points[columns[i['column']]].append(i['data'])
-            fig = tls.make_subplots(rows=1, cols=1, shared_yaxes=True, shared_xaxes=True, vertical_spacing=0.009,
-                                    horizontal_spacing=0.009)
-            fig['layout']['margin'] = {'l': 30, 'r': 10, 'b': 50, 't': 25}
-            for v in points:
-                fig.append_trace({'y': v, 'type': 'scatter'}, 1, 1)
-            fig['layout'].update(title='Graph')
-            style = {}
-            return fig, style
-    return {
-        'data': [{
-            'type': 'scatter',
-            'y': points
-        }],
-        'layout': {
-            'title': 'График (из файла)'
-        }
-    }, style
+        points = []
+        for i in pointss:
+            try:
+                points[columns[i['column']]].append(i['data'])
+            except IndexError:
+                points.append([])
+                points[columns[i['column']]].append(i['data'])
+        fig = tls.make_subplots(rows=1, cols=1, shared_yaxes=True, shared_xaxes=True, vertical_spacing=0.009,
+                                horizontal_spacing=0.009)
+        fig['layout']['margin'] = {'l': 30, 'r': 10, 'b': 50, 't': 25}
+
+        line_selector_options = []
+        for v in range(0, len(points)):
+            fig.append_trace({'y': points[v], 'type': 'scatter'}, 1, 1)
+            line_selector_options.append({'label': v, 'value': v})
+        fig['layout'].update(title='Graph')
+        style = {}
+        return fig, style, line_selector_options
+    return {}, {'display': 'none'}, []
+
+
+def change_style_of_graph(selected_lines, line_color, line_width, marker_color, marker_size, lines_type, figure):
+    for i in selected_lines:
+        try:
+            figure['data'][i]['line'] = {'color': line_color, 'width': line_width}
+            figure['data'][i]['mode'] = lines_type
+            figure['data'][i]['marker'] = {'color': marker_color, 'size': marker_size}
+        except IndexError:
+            figure['data'][i].append({
+                'line': {'color': line_color, 'width': line_width},
+                'marker': {'color': marker_color, 'size': marker_size}
+            }
+            )
+    return figure
 
 
 def show_table(p_size, page, list_of_contents, list_of_names):
@@ -179,6 +201,36 @@ def show_table(p_size, page, list_of_contents, list_of_names):
     return [], []
 
 
+def show_graph_block(value):
+    if value == 'scatter':
+        return {}
+    elif value == 'bar':
+        return {}
+    else:
+        return {'display': 'none'}
+
+
+def show_edit_block(value):
+    print(value)
+    if value % 2 == 0:
+        return {'display': 'none'}
+    else:
+        return {}
+
+
+def create_graph(n_clicks, graph_type, graphs):
+    if n_clicks:
+        print(graphs)
+        if graph_type == 'scatter':
+            graph_callbacks = ScatterTable(n_clicks)
+            if graphs is not None:
+                graphs['props']['children'].append(layout.work_card(n_clicks))
+            else:
+                graphs = layout.work_card(n_clicks)
+
+            return graphs
+        return graphs
+
 # # # # # # # # Классы Callback # # # # # # # #
 
 
@@ -198,7 +250,18 @@ class CallbackObj(object):
         return self.val
 
 
-class Table(CallbackObj):
+class BasicLayout(CallbackObj):
+    def __init__(self):
+        super().__init__()
+        self.graphs = []
+        self.val.append(
+            ((Output('graphs', 'children'),
+              [Input('btn-create-graph', 'n_clicks'),
+               Input('graph-type', 'value')],
+              [State('graphs', 'children')]), create_graph))
+
+
+class Table(BasicLayout):
     def __init__(self):
         super().__init__()
         self.val.append(
@@ -215,16 +278,50 @@ class Table(CallbackObj):
 
 
 class BarTable(Table):
-    def __init__(self):
+    def __init__(self, graph_id):
         super().__init__()
+        self.id = graph_id
         self.val.append(
-            (([Output('bar', 'figure'), Output('bar', 'style')],
-              [Input('div-out', 'children')]), plot_bar_from_table))
+            ((Output('graph-block-{}'.format(self.id), 'style'),
+              [Input('graph-type-{}'.format(self.id), 'value')]),
+             show_graph_block))
+        self.val.append(
+            ((Output('graph-edit-{}'.format(self.id), 'style'),
+              [Input('btn-open-style-{}'.format(self.id), 'n_clicks')]),
+             show_edit_block))
+        self.val.append(
+            (([Output('graph-{}'.format(self.id), 'figure'),
+               Output('graph-{}'.format(self.id), 'style'),
+               # Output('line-selector-{}'.format(self.id), 'options')
+               ],
+              [Input('div-out', 'children'),
+               Input('line-selector-{}'.format(self.id), 'value'),
+               Input('line-color-picker-{}'.format(self.id), 'value'),
+               Input('line-width-{}'.format(self.id), 'value'),
+               Input('lines-type-{}'.format(self.id), 'value')],
+              [State('graph-{}'.format(self.id), 'figure'),
+               State('line-selector-{}'.format(self.id), 'options')]), plot_bar_from_table))
 
 
 class ScatterTable(Table):
-    def __init__(self):
+    def __init__(self, graph_id):
         super().__init__()
+        self.id = graph_id
         self.val.append(
-            (([Output('scatter', 'figure'), Output('scatter', 'style')],
-              [Input('div-out', 'children')]), plot_scatter_from_table))
+            ((Output('graph-edit-{}'.format(self.id), 'style'),
+              [Input('btn-open-style-{}'.format(self.id), 'n_clicks')]),
+             show_edit_block))
+        self.val.append(
+            (([Output('graph-{}'.format(self.id), 'figure'),
+               Output('graph-{}'.format(self.id), 'style'),
+               Output('line-selector-{}'.format(self.id), 'options')],
+              [Input('div-out', 'children'),
+               Input('line-selector-{}'.format(self.id), 'value'),
+               Input('line-color-picker-{}'.format(self.id), 'value'),
+               Input('line-width-{}'.format(self.id), 'value'),
+               Input('marker-color-picker-{}'.format(self.id), 'value'),
+               Input('marker-size-{}'.format(self.id), 'value'),
+               Input('lines-type-{}'.format(self.id), 'value')],
+              [State('graph-{}'.format(self.id), 'figure'),
+               State('line-selector-{}'.format(self.id), 'options')]), plot_scatter_from_table))
+
