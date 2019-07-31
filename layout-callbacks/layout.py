@@ -7,9 +7,7 @@ import dash_daq
 
 def graph_table(graph_id):
     return html.Div(children=[
-        # table(),
         dcc.Graph(id='graph-{}'.format(graph_id)),
-        html.Hr(),
     ])
 
 
@@ -34,7 +32,7 @@ def color_picker(color_picker_type, graph_id):
 def param_input(input_type, graph_id):
     # ex.: line-width-1
     i = input_type + '-' + str(graph_id)
-    return dcc.Input(id=i, type='number', value='3')
+    return dcc.Input(id=i, type='number', value='3', style={'width': '100%'})
 
 
 def dropdown(dropdown_type, graph_id):
@@ -52,14 +50,6 @@ def dropdown(dropdown_type, graph_id):
                         multi=True
             )}[dropdown_type]
 
-
-def row(*cols):
-    cols_list = []
-    for col in cols:
-        cols_list.append(
-            dbc.Col(col)
-        )
-    return dbc.Row(cols_list)
 
 def file_uploarer():
     return html.Div(children=[
@@ -87,9 +77,8 @@ def file_uploarer():
 def table():
     return html.Div(children=[
         file_uploarer(),
-        dash_table.DataTable(id='table', page_current=0,
-                             page_action='custom'),
-        dcc.Input(id='page-size', type='number', value='5'),
+        dash_table.DataTable(id='table', page_action='custom', page_current=0),
+        dcc.Input(id='page-size', type='number', value='5', style={'display': 'none'}),
         html.Div(id='div-out', style={'display': 'none'})
         ])
 
@@ -97,41 +86,58 @@ def table():
 def layout():
     return html.Div([
         table(),
-        html.Button('Добавить новый график', id='btn-create-graph'),
+        dbc.Button('Добавить новый график', id='btn-create-graph', color='primary', style={'width': "100%"}),
         dcc.Dropdown(id='graph-type',
                      options=[{'label': 'Scatter', 'value': 'scatter'},
                               {'label': 'Bar', 'value': 'bar'}],
                      value='scatter'),
+        html.Div(id='created-graphs', style={'display': 'none'}),
         html.Div(id='graphs', children=[])
-        ])
+        ], style={'margin-left': '20%', 'margin-right': '20%'})
 
 
-# TODO: Opportunity to change type of graph
+def row(*cols):
+    cols_list = []
+    for col in cols:
+        cols_list.append(
+            dbc.Col(col)
+        )
+    return dbc.Row(cols_list)
+
+
 def work_card(global_id):
-    cardd = html.Div([
-        html.Div(id='graph-block-{}'.format(global_id), children=[
-            graph_table(global_id)
-        ]),
-        dbc.Button('Открыть/закрыть изменение стилей', id='btn-open-style-{}'.format(global_id),
-                   color="primary", style={"width": "100%"}),
-        html.Div(id='graph-edit-{}'.format(global_id), style={'display': 'none'}, children=[
-            dbc.Collapse(
-                id='style-block-{}'.format(global_id),
-                children=[
-                    html.Div(children=[
-                        # Параметры для типа графика Scatter
-                        dropdown('line', global_id),
-                        color_picker('line-color', global_id),
-                        param_input('line-width', global_id),
-                        color_picker('marker-color', global_id),
-                        param_input('marker-size', global_id),
-                        color_picker('color-error', global_id)
-                        ]),
-                    # режим линии (маркер, маркеры+линия, линия)
-                    card("Тип линии", dropdown('mode', global_id))
-                    ])
+    cardd = dbc.Card([
+            dbc.CardHeader([
+                dbc.Button('X', id='button_delete-{}'.format(global_id),
+                           color="primary", style={"float": "right"}),
+            ]),
+            dbc.CardBody([
+                html.Div(id='graph-block-{}'.format(global_id), children=[
+                    graph_table(global_id)
+                ]),
+            ]),
+            dbc.CardFooter([
+                dbc.Button('Открыть/закрыть изменение стилей', id='btn-open-style-{}'.format(global_id),
+                           color="primary", style={"width": "100%"}),
+                html.Div(id='graph-edit-{}'.format(global_id), style={'display': 'none'}, children=[
+                            dropdown('line', global_id),
+                            dbc.Row([
+                                # Параметры для типа графика Scatter
+                                dbc.Col(html.Div([
+                                    color_picker('line-color', global_id),
+                                    param_input('line-width', global_id),
+                                ])),
+
+                                dbc.Col(html.Div([
+                                    color_picker('marker-color', global_id),
+                                    param_input('marker-size', global_id),
+                                ])),
+                            ]),
+                            # режим линии (маркер, маркеры+линия, линия)
+                            card("Тип линии", dropdown('mode', global_id))
+                ])
             ])
-        ])
+    ])
 
     return cardd
 
