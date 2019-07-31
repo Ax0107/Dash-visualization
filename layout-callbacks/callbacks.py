@@ -1,11 +1,21 @@
 from dash.dependencies import Input, Output, State
 import dash
+from redis_handler import RWrapper
 
 # # # # # # # # Функции для отображения графиков # # # # # # # #
+UUID = 'test'
+RW = RWrapper(UUID)
+
+
+def update_figures_and_traces(n):
+    # TODO: update dropdown value with figures and traces
+    return None, None
+
 
 def save_settings_to_redis(n, settings):
+    print(settings)
     if dash.callback_context.triggered[0]['prop_id'] == 'btn-save-global-style.n_clicks':
-        print(settings)
+        RW.dash.global_settings.set(settings[0])
         return [True, 'success', 'Настройки сохранены']
     return [False, 'success', '']
 
@@ -61,3 +71,8 @@ class SettingsPanel(CallbackObj):
                Output('alert', 'text')],
               [Input('btn-save-global-style', 'n_clicks'),
                Input('settings-storage', 'value')]), save_settings_to_redis))
+        self.val.append(
+            (([Output('global-figures-selector', 'options'),
+               Output('global-traces-selector', 'options')],
+              [Input('btn-open-global-style', 'n_clicks')]), update_figures_and_traces)
+        )

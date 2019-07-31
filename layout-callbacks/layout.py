@@ -37,34 +37,36 @@ def param_input(input_type, graph_id=None, is_global=False):
 
 
 def dropdown(dropdown_type, graph_id=None, is_global=False):
+    ids = {
+        'mode': 'lines-type-{}'.format(graph_id),
+        'traces': 'traces-selector-{}'.format(graph_id)
+    }
     if is_global:
-        return {'mode':
-                dcc.Dropdown(
-                        id='global-lines-type',
+        ids = {'mode': 'global-lines-type',
+               'figures': 'global-figures-selector',
+               'traces': 'global-traces-selector'}
+    try:
+        dd = {'mode':
+              dcc.Dropdown(
+                        id=ids[dropdown_type],
                         options=[{'label': 'Маркеры', 'value': 'markers'},
                                  {'label': 'Линии', 'value': 'lines'},
                                  {'label': 'Маркеры и линии', 'value': 'lines+markers'}],
                         value='lines+markers'
-                    ),
-                'line': dcc.Dropdown(
-                            id='global-line-selector',
+              ),
+              'figures': dcc.Dropdown(
+                    id=ids[dropdown_type],
+                    options=[],
+                    multi=True
+              ),
+              'traces': dcc.Dropdown(
+                            id=ids[dropdown_type],
                             options=[],
                             multi=True
-                )}[dropdown_type]
-    return {'mode':
-            dcc.Dropdown(
-                    id='lines-type-{}'.format(graph_id),
-                    options=[{'label': 'Маркеры', 'value': 'markers'},
-                             {'label': 'Линии', 'value': 'lines'},
-                             {'label': 'Маркеры и линии', 'value': 'lines+markers'}],
-                    value='lines+markers'
-                ),
-            'line': dcc.Dropdown(
-                        id='line-selector-{}'.format(graph_id),
-                        options=[],
-                        multi=True
-            )}[dropdown_type]
-
+              )}[dropdown_type]
+    except IndexError:
+        raise IndexError("For dropdown.figures you must use param 'is_global' with True value")
+    return dd
 
 def row(*cols):
     cols_list = []
@@ -80,7 +82,7 @@ def layout_settings_panel():
         dbc.Alert("Настройки успешно сохранены", id='alert', color="success", dismissable=True, is_open=False),
         dcc.Store(id='settings-storage', storage_type='local'),
         settings_panel()
-        ], style={'width': '30%'})
+        ], style={'width': '33%', 'margin-left': '33%'})
 
 
 def settings_panel():
@@ -92,13 +94,23 @@ def settings_panel():
                 dbc.Button('Открыть/закрыть настройки стилей', id='btn-open-global-style',
                            color="secondary", style={"width": "100%"}),
                 html.Div(id='global-settings-panel', style={'display': 'none'}, children=[
-                    dropdown('line', is_global=True),
+                    html.Hr(),
+                    html.H5('Графики:'),
+                    dropdown('figures', is_global=True),
+                    html.Hr(),
+                    html.H5('Объекты графиков:'),
+                    dropdown('traces', is_global=True),
                     dbc.Row([
                         dbc.Col(html.Div([
+                            html.Hr(),
                             color_picker('line', is_global=True),
+                            html.Hr(),
                             param_input('line-width', is_global=True),
+                            html.Hr(),
                             color_picker('marker', is_global=True),
+                            html.Hr(),
                             param_input('marker-size', is_global=True),
+                            html.Hr(),
                         ])),
                     ]),
                     # режим линии (маркер, маркеры+линия, линия)
