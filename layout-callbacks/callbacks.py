@@ -1,6 +1,8 @@
 from dash.dependencies import Input, Output, State
 import dash
 from redis_handler import RWrapper
+
+
 # # # # # # # # Функции для callback'ов # # # # # # # #
 UUID = 'test'
 RW = RWrapper(UUID)
@@ -30,19 +32,19 @@ def update_traces(figure):
     return result_traces
 
 
-def update_settings(selected_figure, selected_traces, options):
+def update_settings(selected_figure, selected_traces, options, value):
     if selected_traces is not None:
         for trace in selected_traces:
             trace_type = RW.dash()[selected_figure][trace]['type']
             if trace_type == 'scattergl':
                 return {}, {}, [{'label': 'Маркеры', 'value': 'markers'},
                                 {'label': 'Линии', 'value': 'lines'},
-                                {'label': 'Маркеры и линии', 'value': 'lines+markers'}]
+                                {'label': 'Маркеры и линии', 'value': 'lines+markers'}], 'lines+markers'
             else:
                 return {'display': 'none'}, {'display': 'none'}, \
-                       [{'label': 'Вертикальные столбцы', 'value': 'vertial'},
-                        {'label': 'Горизонтальные столбцы', 'value': 'horizontal'}]
-    return {}, {}, options
+                       [{'label': 'Вертикальные столбцы', 'value': 'vertical'},
+                        {'label': 'Горизонтальные столбцы', 'value': 'horizontal'}], 'vertical'
+    return {'display': 'none'}, {'display': 'none'}, options, value
 
 
 def save_settings_to_redis(n, settings):
@@ -66,6 +68,11 @@ def put_to_storage(selected_figure, selected_traces, line_color, marker_color, l
             settings_storage.append(setting)
     return settings_storage
 
+
+def show_edit_block(v):
+    if v is not None and v != []:
+        return {}
+    return {'display': 'none'}
 
 def show_settings_block(value):
     if value:
@@ -101,6 +108,9 @@ class SettingsPanel(CallbackObj):
               [Input('btn-open-global-style', 'n_clicks')]),
              show_settings_block))
         self.val.append(
+            ((Output('global-edit-block', 'style'),
+              [Input('global-traces-selector', 'value')]), show_edit_block))
+        self.val.append(
             ((Output('settings-storage', 'value'),
               [Input('global-figures-selector', 'value'),
                Input('global-traces-selector', 'value'),
@@ -112,10 +122,12 @@ class SettingsPanel(CallbackObj):
         self.val.append(
             (([Output('global-card-marker-color', 'style'),
                Output('global-card-marker-size', 'style'),
-               Output('global-lines-type', 'options')],
+               Output('global-lines-type', 'options'),
+               Output('global-lines-type', 'value')],
               [Input('global-figures-selector', 'value'),
                Input('global-traces-selector', 'value')],
-              [State('global-lines-type', 'options')]), update_settings))
+              [State('global-lines-type', 'options'),
+               State('global-lines-type', 'value')]), update_settings))
         self.val.append(
             (([Output('alert', 'is_open'),
                Output('alert', 'color'),
@@ -128,3 +140,4 @@ class SettingsPanel(CallbackObj):
         self.val.append(
             ((Output('global-traces-selector', 'options'),
              [Input('global-figures-selector', 'value')]), update_traces))
+

@@ -4,11 +4,10 @@ import dash_bootstrap_components as dbc
 import dash_daq
 
 
-def card(id, card_header=None, card_body=None, card_footer=None, style=None):
+def card(id, card_header=None, card_body=None, style=None):
     card_obj = dbc.Card(id=id, children=[
         dbc.CardHeader([card_header], style={"text-align": "center"}),
-        dbc.CardBody(card_body),
-        dbc.CardFooter(card_footer)],
+        dbc.CardBody(card_body)],
         style=style)
     return card_obj
 
@@ -99,21 +98,23 @@ def settings_panel():
                     html.Hr(),
                     html.H5('Объекты графиков:'),
                     dropdown('traces', is_global=True),
-                    dbc.Row([
-                        dbc.Col(html.Div([
-                            card('global-card-line-color', 'Цвет линии', color_picker('line', is_global=True)),
-                            card('global-card-line-width', 'Ширина линии', param_input('line-width', is_global=True)),
-                            html.Hr(),
-                        ])),
-                        dbc.Col(html.Div([
-                            card('global-card-marker-color', 'Цвет маркера', color_picker('marker', is_global=True)),
-                            card('global-card-marker-size', 'Размер маркера', param_input('marker-size', is_global=True)),
-                            html.Hr(),
-                        ])),
-                    ]),
-                    # режим линии (маркер, маркеры+линия, линия)
-                    card("Тип линии", dropdown('mode', is_global=True))
-                ])
+                    html.Div(id='global-edit-block', children=[
+                        dbc.Row([
+                            dbc.Col(html.Div([
+                                card('global-card-line-color', 'Цвет линии', color_picker('line', is_global=True)),
+                                card('global-card-line-width', 'Ширина линии', param_input('line-width', is_global=True)),
+                                html.Hr(),
+                            ])),
+                            dbc.Col(html.Div([
+                                card('global-card-marker-color', 'Цвет маркера', color_picker('marker', is_global=True)),
+                                card('global-card-marker-size', 'Размер маркера', param_input('marker-size', is_global=True)),
+                                html.Hr(),
+                            ])),
+                        ]),
+                        # режим линии (маркер, маркеры+линия, линия)
+                        card('card-line-type-selector', "Тип линии", dropdown('mode', is_global=True))
+                    ])
+                ]),
             ]),
             dbc.CardFooter([
                 dbc.Button('Сохранить', id='btn-save-global-style',
