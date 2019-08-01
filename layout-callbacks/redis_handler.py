@@ -195,6 +195,9 @@ class RWrapper(object):
 
         return dict_data
 
+    def get_user(self):
+        return self.uuid
+
     def get_one_key(self, key):
         """
         :param key: Redis key

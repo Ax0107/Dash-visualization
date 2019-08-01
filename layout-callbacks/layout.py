@@ -5,10 +5,10 @@ import dash_daq
 
 
 def card(card_header=None, card_body=None, card_footer=None, style=None):
-    card_obj = dbc.Card(children=
-        [dbc.CardHeader([card_header], style={"text-align": "center"}),
-         dbc.CardBody(card_body),
-         dbc.CardFooter(card_footer)],
+    card_obj = dbc.Card(children=[
+        dbc.CardHeader([card_header], style={"text-align": "center"}),
+        dbc.CardBody(card_body),
+        dbc.CardFooter(card_footer)],
         style=style)
     return card_obj
 
@@ -17,13 +17,11 @@ def color_picker(color_picker_type, graph_id=None, is_global=False):
     if is_global:
         return dash_daq.ColorPicker(
             id="global-color-picker-{}".format(color_picker_type),
-            label=color_picker_type,
             value={'hex': '#000000', 'rgb': {'r': 0, 'g': 0, 'b': 0, 'a': 1}})
 
     t = color_picker_type + '-picker-' + str(graph_id)
     return dash_daq.ColorPicker(
                     id=t,
-                    label=color_picker_type,
                     value={'hex': '#000000', 'rgb': {'r': 0, 'g': 0, 'b': 0, 'a': 1}})
 
 
@@ -57,7 +55,7 @@ def dropdown(dropdown_type, graph_id=None, is_global=False):
               'figures': dcc.Dropdown(
                     id=ids[dropdown_type],
                     options=[],
-                    multi=True
+                    multi=False
               ),
               'traces': dcc.Dropdown(
                             id=ids[dropdown_type],
@@ -81,6 +79,7 @@ def layout_settings_panel():
     return html.Div([
         dbc.Alert("Настройки успешно сохранены", id='alert', color="success", dismissable=True, is_open=False),
         dcc.Store(id='settings-storage', storage_type='local'),
+        dcc.Input(id='is-setting-by-loading', value=0, style={'display': 'none'}),
         settings_panel()
         ], style={'width': '33%', 'margin-left': '33%'})
 
@@ -102,14 +101,13 @@ def settings_panel():
                     dropdown('traces', is_global=True),
                     dbc.Row([
                         dbc.Col(html.Div([
+                            card('Цвет линии', color_picker('line', is_global=True)),
+                            card('Ширина линии', param_input('line-width', is_global=True)),
                             html.Hr(),
-                            color_picker('line', is_global=True),
-                            html.Hr(),
-                            param_input('line-width', is_global=True),
-                            html.Hr(),
-                            color_picker('marker', is_global=True),
-                            html.Hr(),
-                            param_input('marker-size', is_global=True),
+                        ]),
+                        dbc.Col(html.Div([
+                            card('Цвет маркера', color_picker('marker', is_global=True)),
+                            card('Размер маркера', param_input('marker-size', is_global=True)),
                             html.Hr(),
                         ])),
                     ]),
