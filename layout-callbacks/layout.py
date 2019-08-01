@@ -4,8 +4,8 @@ import dash_bootstrap_components as dbc
 import dash_daq
 
 
-def card(card_header=None, card_body=None, card_footer=None, style=None):
-    card_obj = dbc.Card(children=[
+def card(id, card_header=None, card_body=None, card_footer=None, style=None):
+    card_obj = dbc.Card(id=id, children=[
         dbc.CardHeader([card_header], style={"text-align": "center"}),
         dbc.CardBody(card_body),
         dbc.CardFooter(card_footer)],
@@ -101,13 +101,13 @@ def settings_panel():
                     dropdown('traces', is_global=True),
                     dbc.Row([
                         dbc.Col(html.Div([
-                            card('Цвет линии', color_picker('line', is_global=True)),
-                            card('Ширина линии', param_input('line-width', is_global=True)),
+                            card('global-card-line-color', 'Цвет линии', color_picker('line', is_global=True)),
+                            card('global-card-line-width', 'Ширина линии', param_input('line-width', is_global=True)),
                             html.Hr(),
                         ])),
                         dbc.Col(html.Div([
-                            card('Цвет маркера', color_picker('marker', is_global=True)),
-                            card('Размер маркера', param_input('marker-size', is_global=True)),
+                            card('global-card-marker-color', 'Цвет маркера', color_picker('marker', is_global=True)),
+                            card('global-card-marker-size', 'Размер маркера', param_input('marker-size', is_global=True)),
                             html.Hr(),
                         ])),
                     ]),

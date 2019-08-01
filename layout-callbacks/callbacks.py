@@ -110,8 +110,8 @@ class SettingsPanel(CallbackObj):
                Input('global-input-marker-size', 'value'),
                Input('global-lines-type', 'value')]), put_to_storage))
         self.val.append(
-            (([Output('global-color-picker-marker', 'style'),
-               Output('global-input-marker-size', 'style'),
+            (([Output('global-card-marker-color', 'style'),
+               Output('global-card-marker-size', 'style'),
                Output('global-lines-type', 'options')],
               [Input('global-figures-selector', 'value'),
                Input('global-traces-selector', 'value')],
