@@ -104,7 +104,7 @@ def settings_panel():
                             card('Цвет линии', color_picker('line', is_global=True)),
                             card('Ширина линии', param_input('line-width', is_global=True)),
                             html.Hr(),
-                        ]),
+                        ])),
                         dbc.Col(html.Div([
                             card('Цвет маркера', color_picker('marker', is_global=True)),
                             card('Размер маркера', param_input('marker-size', is_global=True)),
