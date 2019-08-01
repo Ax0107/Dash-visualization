@@ -27,16 +27,18 @@ def update_traces(figure):
             if trace == 'traces':
                 continue
             settings = traces[trace]
-            name = settings['name']
+            try:
+                name = settings['name']
+            except KeyError:
+                name = trace
             result_traces.append({'label': '{} ({})'.format(name, trace), 'value': trace})
     return result_traces
 
 
 def update_settings(selected_figure, selected_traces, trace_name, lines_type_options, lines_type_value):
-    if selected_traces is not None:
+    if selected_figure != [] and selected_figure is not None and selected_traces != [] and selected_traces is not None:
         trace = selected_traces
         trace_settings = RW.dash()[selected_figure][trace]
-        print(trace_settings)
 
         # TODO: Более красивый код (ибо делать try-except каждый раз невыносимо)
         # Тут идёт установка значений, хранящихся в Redis
@@ -90,37 +92,40 @@ def update_settings(selected_figure, selected_traces, trace_name, lines_type_opt
 
 def save_settings_to_redis(n, selected_figure, selected_traces, trace_name, line_color, marker_color, line_width,
                            marker_size, lines_type):
-    if dash.callback_context.triggered[0]['prop_id'] == 'btn-save-global-style.n_clicks':
+    if dash.callback_context.triggered[0]['prop_id'] == 'btn-save-global-style.n_clicks'and selected_traces is not None\
+                                                                                            and selected_traces != []:
 
         # Создаём словарь нужного формата
-        trace_type = RW.dash()[selected_figure][selected_traces]['type']
-        settings = to_settings_type(selected_figure, selected_traces, trace_type, trace_name, line_color, marker_color, line_width,
-                                    marker_size, lines_type)
-
+        try:
+            trace_type = RW.dash()[selected_figure][selected_traces]['type']
+        except KeyError:
+            trace_type = 'scattergl'
+        settings = to_settings_type(selected_figure, selected_traces, trace_type, trace_name,
+                                    line_color, marker_color, line_width, marker_size, lines_type)
         try:
             # Создаём ключ для того, чтобы отловить сохранение настроек и перезагрузить графики
-            settings[0].update({'dash-reload': True})
-            RW.dash.set(settings[0])
+            settings.update({'dash-reload': True})
+            RW.dash.set(settings)
             return [True, 'success', 'Настройки сохранены']
-        except IndexError:
-            pass
         except:
             return [True, 'danger', 'Произошла ошибка при сохранении данных. Настройки не сохранены']
     return [False, 'success', '']
 
 
-def to_settings_type(selected_figure, selected_traces, trace_type, trace_name, line_color, marker_color, line_width, marker_size, lines_type):
+def to_settings_type(selected_figure, selected_traces, trace_type, new_trace_name, line_color, marker_color, line_width, marker_size, lines_type):
     setting = []
     if selected_traces is not None:
+        print(selected_traces)
+        trace_name = RW.dash()[selected_figure][selected_traces]['name']
         if trace_type == 'scattergl':
-            setting = {selected_figure: {'trace{}'.format(selected_traces): {
+            setting = {selected_figure: {selected_traces: {
                                                 'line': {'color': line_color['rgb'], 'width':  line_width},
                                                 'marker': {'color': marker_color['rgb'], 'size': marker_size},
-                                         'name': trace_name, 'mode': lines_type}}}
+                                         'name': new_trace_name, 'name_id': trace_name, 'mode': lines_type}}}
         else:
             setting = {selected_figure: {'trace{}'.format(selected_traces): {
                 'marker': {'color': line_color['rgb'], 'width': line_width},
-                'name': trace_name, 'mode': lines_type}}}
+                'name': new_trace_name, 'name_id': trace_name, 'mode': lines_type}}}
     return setting
 
 
