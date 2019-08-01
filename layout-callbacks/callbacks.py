@@ -93,7 +93,8 @@ def save_settings_to_redis(n, selected_figure, selected_traces, trace_name, line
     if dash.callback_context.triggered[0]['prop_id'] == 'btn-save-global-style.n_clicks':
 
         # Создаём словарь нужного формата
-        settings = to_settings_type(selected_figure, selected_traces, trace_name, line_color, marker_color, line_width,
+        trace_type = RW.dash()[selected_figure][selected_traces]['type']
+        settings = to_settings_type(selected_figure, selected_traces, trace_type, trace_name, line_color, marker_color, line_width,
                                     marker_size, lines_type)
 
         try:
@@ -108,16 +109,19 @@ def save_settings_to_redis(n, selected_figure, selected_traces, trace_name, line
     return [False, 'success', '']
 
 
-def to_settings_type(selected_figure, selected_traces, trace_name, line_color, marker_color, line_width, marker_size, lines_type):
-    settings = []
+def to_settings_type(selected_figure, selected_traces, trace_type, trace_name, line_color, marker_color, line_width, marker_size, lines_type):
+    setting = []
     if selected_traces is not None:
-        for i in range(0, len(selected_traces)):
-            setting = {selected_figure: {'trace{}'.format(i): {
+        if trace_type == 'scattergl':
+            setting = {selected_figure: {'trace{}'.format(selected_traces): {
                                                 'line': {'color': line_color['rgb'], 'width':  line_width},
                                                 'marker': {'color': marker_color['rgb'], 'size': marker_size},
                                          'name': trace_name, 'mode': lines_type}}}
-            settings.append(setting)
-    return settings
+        else:
+            setting = {selected_figure: {'trace{}'.format(selected_traces): {
+                'marker': {'color': line_color['rgb'], 'width': line_width},
+                'name': trace_name, 'mode': lines_type}}}
+    return setting
 
 
 def show_edit_block(v):
