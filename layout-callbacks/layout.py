@@ -59,19 +59,11 @@ def dropdown(dropdown_type, graph_id=None, is_global=False):
               'traces': dcc.Dropdown(
                             id=ids[dropdown_type],
                             options=[],
-                            multi=True
+                            multi=False
               )}[dropdown_type]
     except IndexError:
         raise IndexError("For dropdown.figures you must use param 'is_global' with True value")
     return dd
-
-def row(*cols):
-    cols_list = []
-    for col in cols:
-        cols_list.append(
-            dbc.Col(col)
-        )
-    return dbc.Row(cols_list)
 
 
 def layout_settings_panel():
@@ -100,16 +92,23 @@ def settings_panel():
                     dropdown('traces', is_global=True),
                     html.Div(id='global-edit-block', children=[
                         dbc.Row([
-                            dbc.Col(html.Div([
-                                card('global-card-line-color', 'Цвет линии', color_picker('line', is_global=True)),
-                                card('global-card-line-width', 'Ширина линии', param_input('line-width', is_global=True)),
-                                html.Hr(),
-                            ])),
-                            dbc.Col(html.Div([
-                                card('global-card-marker-color', 'Цвет маркера', color_picker('marker', is_global=True)),
-                                card('global-card-marker-size', 'Размер маркера', param_input('marker-size', is_global=True)),
-                                html.Hr(),
-                            ])),
+                            dbc.Col([
+                                card('global-card-trace-name', 'Имя trace',
+                                     dcc.Input(id="global-input-trace-name",
+                                               type='text', value='3', style={'width': '100%'})),
+                                dbc.Row([
+                                    dbc.Col([
+                                        card('global-card-line-color', 'Цвет линии', color_picker('line', is_global=True)),
+                                        card('global-card-line-width', 'Ширина линии', param_input('line-width', is_global=True)),
+                                        html.Hr(),
+                                    ]),
+                                    dbc.Col([
+                                        card('global-card-marker-color', 'Цвет маркера', color_picker('marker', is_global=True)),
+                                        card('global-card-marker-size', 'Размер маркера', param_input('marker-size', is_global=True)),
+                                        html.Hr(),
+                                    ]),
+                                ]),
+                            ])
                         ]),
                         # режим линии (маркер, маркеры+линия, линия)
                         card('card-line-type-selector', "Тип линии", dropdown('mode', is_global=True))

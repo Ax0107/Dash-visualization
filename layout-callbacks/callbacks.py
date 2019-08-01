@@ -32,47 +32,99 @@ def update_traces(figure):
     return result_traces
 
 
-def update_settings(selected_figure, selected_traces, options, value):
+def update_settings(selected_figure, selected_traces, trace_name, lines_type_options, lines_type_value):
     if selected_traces is not None:
-        for trace in selected_traces:
-            trace_type = RW.dash()[selected_figure][trace]['type']
-            if trace_type == 'scattergl':
-                return {}, {}, [{'label': 'Маркеры', 'value': 'markers'},
-                                {'label': 'Линии', 'value': 'lines'},
-                                {'label': 'Маркеры и линии', 'value': 'lines+markers'}], 'lines+markers'
-            else:
-                return {'display': 'none'}, {'display': 'none'}, \
-                       [{'label': 'Вертикальные столбцы', 'value': 'vertical'},
-                        {'label': 'Горизонтальные столбцы', 'value': 'horizontal'}], 'vertical'
-    return {'display': 'none'}, {'display': 'none'}, options, value
+        trace = selected_traces
+        trace_settings = RW.dash()[selected_figure][trace]
+        print(trace_settings)
 
+        # TODO: Более красивый код (ибо делать try-except каждый раз невыносимо)
+        # Тут идёт установка значений, хранящихся в Redis
+        # Если значение не установлено, то мы ловим KeyError и устанавливаем какое-то значение по-умолчанию
+        # Возможно TODO: default settings?
 
-def save_settings_to_redis(n, settings):
-    if dash.callback_context.triggered[0]['prop_id'] == 'btn-save-global-style.n_clicks':
         try:
+            trace_type = trace_settings['type']
+        except KeyError:
+            trace_type = 'scattergl'
+        try:
+            trace_name = trace_settings['name']
+        except KeyError:
+            trace_name = trace
+        try:
+            trace_line_color = {'rgb': trace_settings['line']['color']}
+            trace_line_width = trace_settings['line']['width']
+        except KeyError:
+            trace_line_color = None
+            trace_line_width = 5
+
+        if trace_type == 'scattergl':
+            try:
+                trace_marker_color = {'rgb': trace_settings['marker']['color']}
+                trace_marker_size = trace_settings['marker']['size']
+            except KeyError:
+                trace_marker_color = None
+                trace_marker_size = 15
+
+            try:
+                trace_lines_type = trace_settings['mode']
+            except KeyError:
+                trace_lines_type = 'lines+markers'
+
+            return trace_name, trace_line_color, trace_marker_color, trace_line_width, \
+                trace_marker_size, trace_lines_type, \
+                {}, {}, [{'label': 'Маркеры', 'value': 'markers'},
+                         {'label': 'Линии', 'value': 'lines'},
+                         {'label': 'Маркеры и линии', 'value': 'lines+markers'}]
+
+        else:
+            trace_lines_type = 'vertical'
+            return trace_name, trace_line_color, None, trace_line_width, None, trace_lines_type, \
+                {'display': 'none'}, {'display': 'none'}, \
+                [{'label': 'Вертикальные столбцы', 'value': 'vertical'},
+                 {'label': 'Горизонтальные столбцы', 'value': 'horizontal'}]
+
+    return trace_name, None, None, None, None, lines_type_value, \
+        {'display': 'none'}, {'display': 'none'}, lines_type_options
+
+
+def save_settings_to_redis(n, selected_figure, selected_traces, trace_name, line_color, marker_color, line_width,
+                           marker_size, lines_type):
+    if dash.callback_context.triggered[0]['prop_id'] == 'btn-save-global-style.n_clicks':
+
+        # Создаём словарь нужного формата
+        settings = to_settings_type(selected_figure, selected_traces, trace_name, line_color, marker_color, line_width,
+                                    marker_size, lines_type)
+
+        try:
+            # Создаём ключ для того, чтобы отловить сохранение настроек и перезагрузить графики
             settings[0].update({'dash-reload': True})
             RW.dash.set(settings[0])
+            return [True, 'success', 'Настройки сохранены']
+        except IndexError:
+            pass
         except:
-            return [True, 'danger', 'Произошла ошибка при подключении к Resis. Настройки не сохранены']
-        return [True, 'success', 'Настройки сохранены']
+            return [True, 'danger', 'Произошла ошибка при сохранении данных. Настройки не сохранены']
     return [False, 'success', '']
 
 
-def put_to_storage(selected_figure, selected_traces, line_color, marker_color, line_width, marker_size, lines_type):
-    settings_storage = []
+def to_settings_type(selected_figure, selected_traces, trace_name, line_color, marker_color, line_width, marker_size, lines_type):
+    settings = []
     if selected_traces is not None:
         for i in range(0, len(selected_traces)):
-            setting = {selected_figure: {'trace{}'.format(i):
-                             {'line': {'color': line_color['rgb'], 'width':  line_width},
-                             'marker': {'color': marker_color['rgb'], 'size': marker_size}, 'mode': lines_type}}}
-            settings_storage.append(setting)
-    return settings_storage
+            setting = {selected_figure: {'trace{}'.format(i): {
+                                                'line': {'color': line_color['rgb'], 'width':  line_width},
+                                                'marker': {'color': marker_color['rgb'], 'size': marker_size},
+                                         'name': trace_name, 'mode': lines_type}}}
+            settings.append(setting)
+    return settings
 
 
 def show_edit_block(v):
     if v is not None and v != []:
         return {}
     return {'display': 'none'}
+
 
 def show_settings_block(value):
     if value:
@@ -110,30 +162,40 @@ class SettingsPanel(CallbackObj):
         self.val.append(
             ((Output('global-edit-block', 'style'),
               [Input('global-traces-selector', 'value')]), show_edit_block))
+
         self.val.append(
-            ((Output('settings-storage', 'value'),
-              [Input('global-figures-selector', 'value'),
-               Input('global-traces-selector', 'value'),
-               Input('global-color-picker-line', 'value'),
-               Input('global-color-picker-marker', 'value'),
-               Input('global-input-line-width', 'value'),
-               Input('global-input-marker-size', 'value'),
-               Input('global-lines-type', 'value')]), put_to_storage))
-        self.val.append(
-            (([Output('global-card-marker-color', 'style'),
+            (([
+               # Outputs для установки значений из Redis (загрузки данных)
+               Output('global-input-trace-name', 'value'),
+               Output('global-color-picker-line', 'value'),
+               Output('global-color-picker-marker', 'value'),
+               Output('global-input-line-width', 'value'),
+               Output('global-input-marker-size', 'value'),
+               Output('global-lines-type', 'value'),
+
+               # Outputs для скрытия/показа некоторых Card (исходя из типа графика)
+               Output('global-card-marker-color', 'style'),
                Output('global-card-marker-size', 'style'),
-               Output('global-lines-type', 'options'),
-               Output('global-lines-type', 'value')],
+               Output('global-lines-type', 'options')],
+
               [Input('global-figures-selector', 'value'),
                Input('global-traces-selector', 'value')],
-              [State('global-lines-type', 'options'),
+              [State('global-input-trace-name', 'value'),
+               State('global-lines-type', 'options'),
                State('global-lines-type', 'value')]), update_settings))
         self.val.append(
             (([Output('alert', 'is_open'),
                Output('alert', 'color'),
                Output('alert', 'children')],
-              [Input('btn-save-global-style', 'n_clicks'),
-               Input('settings-storage', 'value')]), save_settings_to_redis))
+              [Input('btn-save-global-style', 'n_clicks')],
+              [State('global-figures-selector', 'value'),
+               State('global-traces-selector', 'value'),
+               State('global-input-trace-name', 'value'),
+               State('global-color-picker-line', 'value'),
+               State('global-color-picker-marker', 'value'),
+               State('global-input-line-width', 'value'),
+               State('global-input-marker-size', 'value'),
+               State('global-lines-type', 'value')]), save_settings_to_redis))
         self.val.append(
             ((Output('global-figures-selector', 'options'),
               [Input('btn-open-global-style', 'n_clicks')]), update_figures))
