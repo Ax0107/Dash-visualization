@@ -117,14 +117,18 @@ def to_settings_type(selected_figure, selected_traces, trace_type, new_trace_nam
     if selected_traces is not None:
         print(selected_traces)
         trace_name = RW.dash()[selected_figure][selected_traces]['name']
+        line_color = 'rgb({},{},{},{})'.format(line_color['rgb']['r'], line_color['rgb']['g'],
+                                               line_color['rgb']['b'], line_color['rgb']['a'])
+        marker_color = 'rgb({},{},{},{})'.format(marker_color['rgb']['r'], marker_color['rgb']['g'],
+                                                 marker_color['rgb']['b'], marker_color['rgb']['a'])
         if trace_type == 'scattergl':
             setting = {selected_figure: {selected_traces: {
-                                                'line': {'color': line_color['rgb'], 'width':  line_width},
-                                                'marker': {'color': marker_color['rgb'], 'size': marker_size},
+                                                'line': {'color': line_color, 'width':  line_width},
+                                                'marker': {'color': marker_color, 'size': marker_size},
                                          'name': new_trace_name, 'name_id': trace_name, 'mode': lines_type}}}
         else:
             setting = {selected_figure: {'trace{}'.format(selected_traces): {
-                'marker': {'color': line_color['rgb'], 'width': line_width},
+                'marker': {'color': line_color, 'width': line_width},
                 'name': new_trace_name, 'name_id': trace_name, 'mode': lines_type}}}
     return setting
 
