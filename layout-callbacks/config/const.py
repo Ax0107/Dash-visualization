@@ -15,6 +15,7 @@ def get_ip():
 
 
 # loading +=1
+APPID = 0
 
 UPDATEINTERVAL = 1000  # in ms
 AVOID = ['Time', 'TrackNumber', 'PacketNumber']

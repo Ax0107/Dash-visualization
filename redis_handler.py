@@ -10,7 +10,7 @@ import pandas as pd
 import redis
 from bs4 import BeautifulSoup
 
-from config.const import REDISHOST, REDISPORT, REDISMAXPULL, TIMEZONE,APPID
+from config.const import REDISHOST, REDISPORT, REDISMAXPULL, TIMEZONE
 
 LOG_LEVEL = logging.DEBUG
 logger = logging.getLogger('redis hook')
@@ -25,8 +25,6 @@ def getbuiltin_method(method, val):
     "Hacky wrapper, needs rewriting"
     if method == 'list':
         return re.findall("\w+", val)
-    elif method=='bytes':
-        return int(val)
     else:
         try:
             return getattr(__builtins__, method)(val)
@@ -69,14 +67,13 @@ def prepare(redis_resp, utc, step):
 
 class Storage(object):
 
-    def __init__(self, id='0:Trajectory:Rlist', step='500ms', preload=False):
+    def __init__(self, id='0:Trajectory:Rlist', step='500ms'):
         self.step = step
         self.id = id
         self.redis_wrapper = RWrapper()
-        if preload:
-            to_df, self.end = self.redis_wrapper.pull(self.id, 0, 0)
-            if to_df is not None and type(to_df) is pd.DataFrame and not to_df.empty:
-                self.df = prepare(to_df, False, step)
+        to_df, self.end = self.redis_wrapper.pull(self.id, 0, 0)
+        if to_df is not None and type(to_df) is pd.DataFrame and not to_df.empty:
+            self.df = prepare(to_df, False, step)
 
     def get_size(self):
         return self.redis_wrapper.get_size(self.id)
@@ -103,15 +100,12 @@ class RWrapper(object):
         self.uuid = uuid
         self.r = r
 
-    @staticmethod
-    def loading(val=1):
-        key_loading = '{}:counterLoading:int'.format(APPID)
+    def loading(self, val=1):
         if val > 0:
-            RWrapper(APPID).counterLoading.set(int(RWrapper(APPID).counterLoading() or 0) + val)
-            RWrapper(APPID).loaded.set(0)
+            self.r.set('0:counterLoading:int', int(self.r.get('0:counterLoading:int') or 0) + val)
         else:
-            RWrapper(APPID).counterLoading.set(0)
-        return RWrapper(APPID).counterLoading()
+            self.r.set('0:counterLoading:int', 0)
+        self.r.set('0:AppLoaded:byte', 0)
 
     async def push_xml(self, xml):
         """Pushes XML Into Redis List, assuming the time counted from stream start
@@ -201,6 +195,9 @@ class RWrapper(object):
 
         return dict_data
 
+    def get_user(self):
+        return self.uuid
+
     def get_one_key(self, key):
         """
         :param key: Redis key
@@ -230,7 +227,6 @@ class RWrapper(object):
         params = param.split('.', 1)
         if len(params) == 1:
             dict_little[params[0]] = value
-
         else:
             dict_little[params[0]] = self.put_key(params[1], value, dict_little.get(params[0], {}))
         return dict_little
@@ -270,9 +266,6 @@ class Getter(RWrapper):
                 return self.__comp__(d[key])
         return {}
 
-    def child(self, name):
-        return self.__getattr__(name)
-
     def get_children(self, search_str=''):
         """
         :param search_str:
@@ -280,6 +273,9 @@ class Getter(RWrapper):
         """
         return set([getattr(self, i.decode().partition(self.uuid + ':' + self.__name__)[2].split('.')[1].split(':')[0]) \
                     for i in self.keys_list() if search_str in i.decode()])
+
+    def child(self, name):
+        return self.__getattr__(name)
 
     def val(self):
         """
@@ -303,8 +299,7 @@ class Getter(RWrapper):
                 if default:
                     return default
             else:
-                logger.info(AttributeError('No such keys in Redis - {}:{}. Returning None'.format(self.uuid, self.__name__)))
-                return None
+                raise AttributeError('No such keys in Redis - {}:{}'.format(self.uuid, self.__name__))
 
     def keys_list(self):
         """

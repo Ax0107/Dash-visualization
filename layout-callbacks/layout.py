@@ -95,7 +95,7 @@ def settings_panel():
                             dbc.Col([
                                 card('global-card-trace-name', 'Имя trace',
                                      dcc.Input(id="global-input-trace-name",
-                                               type='text', value='3', style={'width': '100%'})),
+                                               type='text', style={'width': '100%'})),
                                 dbc.Row([
                                     dbc.Col([
                                         card('global-card-line-color', 'Цвет линии', color_picker('line', is_global=True)),
