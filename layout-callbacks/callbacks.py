@@ -1,7 +1,7 @@
 from dash.dependencies import Input, Output, State
 import dash
-from redis_handler import RWrapper
-
+from redis_handler import RWrapper, Storage
+import pandas as pd
 
 # # # # # # # # Функции для callback'ов # # # # # # # #
 UUID = 'test'
@@ -11,14 +11,33 @@ RW = RWrapper(UUID)
 def update_figures(n):
     figures = []
     if n is not None:
-        print(RW.dash())
-        for i in RW.dash():
+        print(RW.dash().keys())
+        for i in RW.dash().keys():
             if 'figure' in i:
                 figures.append({'label': i, 'value': i})
     return figures
 
 
-def update_traces(figure):
+def update_stream_traces(value):
+    figures = []
+    if value is not None:
+        frame, end = Storage(id=value, preload=True).call(start=0, end=1)
+        cols = list(pd.DataFrame(frame).columns)
+        for i in cols:
+            figures.append({'label': i, 'value': i})
+    return figures
+
+
+def update_stream(n):
+    streams = []
+    for i in RW.search("*:Rlist"):
+        i = i.decode("utf-8")
+        streams.append({'label': i, 'value': i})
+    return streams
+
+
+def update_traces(figure, stream):
+    print('selected_stream', stream)
     result_traces = []
     if figure is not None:
         traces = RW.dash()[figure]
@@ -44,20 +63,21 @@ def get_dict_from_str(color):
 def update_settings(selected_figure, selected_traces, trace_name, lines_type_options, lines_type_value):
     if selected_figure != [] and selected_figure is not None and selected_traces != [] and selected_traces is not None:
         trace_settings = RW.dash.child(selected_figure).child(selected_traces).val()
-
+        # print('TRACE-SETTINGS:', trace_settings)
         trace_type = trace_settings.get('type')
         trace_name = trace_settings.get('name')
-        trace_line = trace_settings.get('line', {'color': {'r': 0, 'g': 0, 'b': 0, 'a': 1}, 'width': 5})
-        trace_line_color = {'rgb': trace_line.get('color', {'r': 0, 'g': 0, 'b': 0, 'a': 1})}
-        trace_line_color = get_dict_from_str(trace_line_color)
-        trace_line_width = trace_line.get('width', 5)
+        trace_marker = trace_settings.get('marker', {'color': {'r': 0, 'g': 0, 'b': 0, 'a': 1}, 'width': 5})
+        trace_marker_color = {'rgb': trace_marker.get('color', {'r': 0, 'g': 0, 'b': 0, 'a': 1})}
+        trace_marker_color = {'rgb': get_dict_from_str(trace_marker_color['rgb'])}
+        trace_marker_size = trace_marker.get('size', 10)
 
         if trace_type == 'scattergl':
-            trace_marker = trace_settings.get('marker', {'color': {'r': 0, 'g': 0, 'b': 0, 'a': 1}, 'width': 5})
-            trace_marker_color = {'rgb': trace_marker.get('color', {'r': 0, 'g': 0, 'b': 0, 'a': 1})}
-            trace_marker_color = {'rgb': get_dict_from_str(trace_marker_color['rgb'])}
-            trace_marker_size = trace_marker.get('size', 10)
             trace_lines_type = trace_settings.get('mode', 'lines+markers')
+
+            trace_line = trace_settings.get('line', {'color': {'r': 0, 'g': 0, 'b': 0, 'a': 1}, 'width': 5})
+            trace_line_color = {'rgb': trace_line.get('color', {'r': 0, 'g': 0, 'b': 0, 'a': 1})}
+            trace_line_color = {'rgb': get_dict_from_str(trace_line_color)}
+            trace_line_width = trace_line.get('width', 5)
 
             return trace_name, trace_line_color, trace_marker_color, trace_line_width, \
                 trace_marker_size, trace_lines_type, \
@@ -67,7 +87,7 @@ def update_settings(selected_figure, selected_traces, trace_name, lines_type_opt
 
         else:
             trace_lines_type = 'vertical'
-            return trace_name, trace_line_color, None, trace_line_width, None, trace_lines_type, \
+            return trace_name, trace_marker_color, None, trace_marker_size, None, trace_lines_type, \
                 {'display': 'none'}, {'display': 'none'}, \
                 [{'label': 'Вертикальные столбцы', 'value': 'vertical'},
                  {'label': 'Горизонтальные столбцы', 'value': 'horizontal'}]
@@ -85,6 +105,7 @@ def save_settings_to_redis(n, selected_figure, selected_traces, trace_name, line
         trace_type = RW.dash.child(selected_figure).child(selected_traces).val().get('type', 'scattergl')
         settings = to_settings_type(selected_figure, selected_traces, trace_type, trace_name,
                                     line_color, marker_color, line_width, marker_size, lines_type)
+        # print('REDIS-PUT:', settings)
         try:
             # Создаём ключ для того, чтобы отловить сохранение настроек и перезагрузить графики
             settings.update({'dash-reload': True})
@@ -102,24 +123,22 @@ def to_settings_type(selected_figure, selected_traces, trace_type, new_trace_nam
         trace_name = RW.dash.child(selected_figure).child(selected_traces).val().get('name', new_trace_name)
         try:
             line_color = 'rgb({},{},{},{})'.format(line_color['rgb']['r'], line_color['rgb']['g'],
-                                               line_color['rgb']['b'], line_color['rgb']['a'])
-        except TypeError:
+                                                   line_color['rgb']['b'], line_color['rgb']['a'])
+        except KeyError:
             pass
-        print(line_color)
         if trace_type == 'scattergl':
             try:
                 marker_color = 'rgb({},{},{},{})'.format(marker_color['rgb']['r'], marker_color['rgb']['g'],
-                                                     marker_color['rgb']['b'], marker_color['rgb']['a'])
-            except TypeError:
+                                                         marker_color['rgb']['b'], marker_color['rgb']['a'])
+            except KeyError:
                 pass
-
             setting = {selected_figure: {selected_traces: {
                                                 'line': {'color': line_color, 'width':  line_width},
                                                 'marker': {'color': marker_color, 'size': marker_size},
                                          'name': new_trace_name, 'name_id': trace_name, 'mode': lines_type}}}
         else:
             setting = {selected_figure: {selected_traces: {
-                'marker': {'color': line_color, 'width': line_width},
+                'marker': {'color': line_color, 'size': line_width},
                 'name': new_trace_name, 'name_id': trace_name, 'mode': lines_type}}}
     return setting
 
@@ -201,9 +220,13 @@ class SettingsPanel(CallbackObj):
                State('global-input-marker-size', 'value'),
                State('global-lines-type', 'value')]), save_settings_to_redis))
         self.val.append(
+            ((Output('global-stream-selector', 'options'),
+              [Input('btn-open-global-style', 'n_clicks')]), update_stream))
+        self.val.append(
             ((Output('global-figures-selector', 'options'),
               [Input('btn-open-global-style', 'n_clicks')]), update_figures))
         self.val.append(
             ((Output('global-traces-selector', 'options'),
-             [Input('global-figures-selector', 'value')]), update_traces))
+             [Input('global-figures-selector', 'value'),
+              Input('global-stream-selector', 'value')]), update_traces))
 

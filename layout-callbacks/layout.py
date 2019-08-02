@@ -41,6 +41,7 @@ def dropdown(dropdown_type, graph_id=None, is_global=False):
     if is_global:
         ids = {'mode': 'global-lines-type',
                'figures': 'global-figures-selector',
+               'stream': 'global-stream-selector',
                'traces': 'global-traces-selector'}
     try:
         dd = {'mode':
@@ -50,6 +51,11 @@ def dropdown(dropdown_type, graph_id=None, is_global=False):
                                  {'label': 'Линии', 'value': 'lines'},
                                  {'label': 'Маркеры и линии', 'value': 'lines+markers'}],
                         value='lines+markers'
+              ),
+              'stream':
+              dcc.Dropdown(
+                      id=ids[dropdown_type],
+                      options=[],
               ),
               'figures': dcc.Dropdown(
                     id=ids[dropdown_type],
@@ -85,10 +91,13 @@ def settings_panel():
                            color="secondary", style={"width": "100%"}),
                 html.Div(id='global-settings-panel', style={'display': 'none'}, children=[
                     html.Hr(),
-                    html.H5('Графики:'),
+                    html.H5('График:'),
                     dropdown('figures', is_global=True),
                     html.Hr(),
-                    html.H5('Объекты графиков:'),
+                    html.H5('Поток:'),
+                    dropdown('stream', is_global=True),
+                    html.Hr(),
+                    html.H5('Объекты потока:'),
                     dropdown('traces', is_global=True),
                     html.Div(id='global-edit-block', children=[
                         dbc.Row([
