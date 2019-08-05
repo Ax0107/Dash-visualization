@@ -8,14 +8,28 @@ UUID = 'test'
 RW = RWrapper(UUID)
 
 
-def update_figures(n):
+def update_figures(n, d, figure_type, selected_figure):
+    value = ''
+    if dash.callback_context.triggered[0]['prop_id'] == 'delete-graph.n_clicks':
+        # print(RW.dash.child(selected_figure).val(), selected_figure)
+        RW.dash.child(selected_figure).remove()
+        value = None
+    elif dash.callback_context.triggered[0]['prop_id'] == 'global-figure-type-selector.value':
+        RW.dash.child(selected_figure).set({'type': figure_type})
+
     figures = []
     if n is not None:
-        print(RW.dash().keys())
+        # Создаём новую фигуру в Redis
+        figure = 'figure{}'.format(n)
+        RW.dash.set({figure: {'type': figure_type}})
+
+    if RW.dash() is not None:
         for i in RW.dash().keys():
             if 'figure' in i:
                 figures.append({'label': i, 'value': i})
-    return figures
+    if value == '':
+        value = 'figure{}'.format(n)
+    return figures, value
 
 
 def update_stream_traces(value):
@@ -36,21 +50,30 @@ def update_stream(n):
     return streams
 
 
-def update_traces(figure, stream):
-    print('selected_stream', stream)
-    result_traces = []
-    if figure is not None:
-        traces = RW.dash()[figure]
-        for trace in traces:
-            if trace == 'traces':
-                continue
-            settings = traces[trace]
-            try:
-                name = settings['name']
-            except KeyError:
-                name = trace
-            result_traces.append({'label': '{} ({})'.format(name, trace), 'value': trace})
-    return result_traces
+def update_traces(figure, stream, traces):
+    # TODO: save figure traces to Redis
+    # TODO: загрузка значений из Redis (!!!)
+    if figure != [] and figure is not None:
+        # print(figure)
+        figure_childs = RW.dash()[figure]
+        if traces is not None and traces != []:
+
+            # Удаление всех прошлых ключей traces
+            for i in figure_childs.keys():
+                RW.dash.child(figure).child(i).remove()
+
+            for i in range(0, len(traces)):
+                # Сохранение всех выбранных trace
+                # TODO: trace_type save
+                RW.dash.child(figure).set(
+                    {'trace{}'.format(i):
+                         {'name': traces[i],
+                          'name_id': traces[i]}
+                    }
+                )
+            figure_childs = RW.dash.child(figure).val()
+            return [{'label': '{} ({})'.format(figure_childs[i]['name'], i), 'value': i} for i in figure_childs.keys()]
+    return []
 
 
 def get_dict_from_str(color):
@@ -60,22 +83,31 @@ def get_dict_from_str(color):
     return color
 
 
+DEFAULT_COLOR = {'r': 255, 'g': 100, 'b': 100, 'a': 1}
+
+
 def update_settings(selected_figure, selected_traces, trace_name, lines_type_options, lines_type_value):
     if selected_figure != [] and selected_figure is not None and selected_traces != [] and selected_traces is not None:
         trace_settings = RW.dash.child(selected_figure).child(selected_traces).val()
+        figure_settings = RW.dash.child(selected_figure).val()
         # print('TRACE-SETTINGS:', trace_settings)
+        print(figure_settings)
+        try:
+            figure_type = figure_settings.get('type', 'scattergl')
+        except AttributeError:
+            figure_type = figure_settings
         trace_type = trace_settings.get('type')
         trace_name = trace_settings.get('name')
-        trace_marker = trace_settings.get('marker', {'color': {'r': 0, 'g': 0, 'b': 0, 'a': 1}, 'width': 5})
-        trace_marker_color = {'rgb': trace_marker.get('color', {'r': 0, 'g': 0, 'b': 0, 'a': 1})}
+        trace_marker = trace_settings.get('marker', {'color': DEFAULT_COLOR, 'width': 5})
+        trace_marker_color = {'rgb': trace_marker.get('color', DEFAULT_COLOR)}
         trace_marker_color = {'rgb': get_dict_from_str(trace_marker_color['rgb'])}
         trace_marker_size = trace_marker.get('size', 10)
 
-        if trace_type == 'scattergl':
+        if figure_type == 'scattergl' or figure_type is None:
             trace_lines_type = trace_settings.get('mode', 'lines+markers')
 
-            trace_line = trace_settings.get('line', {'color': {'r': 0, 'g': 0, 'b': 0, 'a': 1}, 'width': 5})
-            trace_line_color = {'rgb': trace_line.get('color', {'r': 0, 'g': 0, 'b': 0, 'a': 1})}
+            trace_line = trace_settings.get('line', {'color': DEFAULT_COLOR, 'width': 5})
+            trace_line_color = {'rgb': trace_line.get('color', DEFAULT_COLOR)}
             trace_line_color = {'rgb': get_dict_from_str(trace_line_color)}
             trace_line_width = trace_line.get('width', 5)
 
@@ -85,7 +117,7 @@ def update_settings(selected_figure, selected_traces, trace_name, lines_type_opt
                          {'label': 'Линии', 'value': 'lines'},
                          {'label': 'Маркеры и линии', 'value': 'lines+markers'}]
 
-        else:
+        elif figure_type == 'bar':
             trace_lines_type = 'vertical'
             return trace_name, trace_marker_color, None, trace_marker_size, None, trace_lines_type, \
                 {'display': 'none'}, {'display': 'none'}, \
@@ -143,8 +175,23 @@ def to_settings_type(selected_figure, selected_traces, trace_type, new_trace_nam
     return setting
 
 
-def show_edit_block(v):
-    if v is not None and v != []:
+def load_traces_from_redis_for_figure(figure_name):
+    traces = RW.dash.child(figure_name).val()
+    result_traces = []
+    for trace in traces:
+        if trace == 'traces':
+            continue
+        settings = traces[trace]
+        try:
+            name = settings['name']
+        except KeyError:
+            name = trace
+        result_traces.append({'label': '{} ({})'.format(name, trace), 'value': trace})
+    return result_traces
+
+
+def show_edit_block(a, b):
+    if a not in [[], None] and b not in [[], None]:
         return {}
     return {'display': 'none'}
 
@@ -155,6 +202,11 @@ def show_settings_block(value):
             return {}
     return {'display': 'none'}
 
+
+def show_settings_for_figure_block(value):
+    if value is not None and value != []:
+        return {}
+    return {'display': 'none'}
 
 # # # # # # # # Классы Callback # # # # # # # #
 
@@ -178,14 +230,50 @@ class CallbackObj(object):
 class SettingsPanel(CallbackObj):
     def __init__(self):
         super().__init__()
+        # При нажатии кнопки "открыть" показывается settings-panel
         self.val.append(
             ((Output('global-settings-panel', 'style'),
               [Input('btn-open-global-style', 'n_clicks')]),
              show_settings_block))
-        self.val.append(
-            ((Output('global-edit-block', 'style'),
-              [Input('global-traces-selector', 'value')]), show_edit_block))
 
+        # Загрузка данных о потоках
+        self.val.append(
+            ((Output('global-stream-selector', 'options'),
+              [Input('btn-open-global-style', 'n_clicks')]), update_stream))
+
+        # Юзер: *создаёт график*
+
+        # Создание и обновление всех графиков в Redis
+        self.val.append(
+            (([Output('global-figures-selector', 'options'),
+              Output('global-figures-selector', 'value')],
+              [Input('create-graph', 'n_clicks'),
+               Input('delete-graph', 'n_clicks'),
+               Input('global-figure-type-selector', 'value')],
+              [State('global-figures-selector', 'value')]), update_figures))
+
+        # Юзер: *выбирает график*
+
+        # Показ следующего блока настроек, если выбран график
+        self.val.append(
+            ((Output('children-figures', 'style'),
+              [Input('global-figures-selector', 'value')]), show_settings_for_figure_block))
+
+        # Юзер: *выбирает поток для отрисовки графика*
+
+        # Показ возможных данных для отрисовки из потока
+        self.val.append(
+            ((Output('global-visible-traces-selector', 'options'),
+              [Input('global-stream-selector', 'value')]), update_stream_traces))
+
+        # Обновление данных traces для графика в Redis
+        self.val.append(
+            ((Output('global-traces-selector', 'options'),
+             [Input('global-figures-selector', 'value'),
+              Input('global-stream-selector', 'value'),
+              Input('global-visible-traces-selector', 'value')]), update_traces))
+
+        # Загрузка данных color-picker, input (etc.) исходя из данных в Redis
         self.val.append(
             (([
                # Outputs для установки значений из Redis (загрузки данных)
@@ -206,6 +294,13 @@ class SettingsPanel(CallbackObj):
               [State('global-input-trace-name', 'value'),
                State('global-lines-type', 'options'),
                State('global-lines-type', 'value')]), update_settings))
+
+        self.val.append(
+            ((Output('global-edit-block', 'style'),
+              [Input('global-visible-traces-selector', 'value'),
+               Input('global-stream-selector', 'value')]), show_edit_block))
+
+        # Сохранение данных о traces в Redis
         self.val.append(
             (([Output('alert', 'is_open'),
                Output('alert', 'color'),
@@ -219,14 +314,3 @@ class SettingsPanel(CallbackObj):
                State('global-input-line-width', 'value'),
                State('global-input-marker-size', 'value'),
                State('global-lines-type', 'value')]), save_settings_to_redis))
-        self.val.append(
-            ((Output('global-stream-selector', 'options'),
-              [Input('btn-open-global-style', 'n_clicks')]), update_stream))
-        self.val.append(
-            ((Output('global-figures-selector', 'options'),
-              [Input('btn-open-global-style', 'n_clicks')]), update_figures))
-        self.val.append(
-            ((Output('global-traces-selector', 'options'),
-             [Input('global-figures-selector', 'value'),
-              Input('global-stream-selector', 'value')]), update_traces))
-

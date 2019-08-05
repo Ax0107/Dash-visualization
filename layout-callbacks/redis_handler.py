@@ -243,7 +243,6 @@ class RWrapper(object):
         return self.r.keys(search_string)
 
     def delete(self, keys):
-        print(keys)
         for key in keys:
             self.r.delete(key)
 
@@ -336,7 +335,15 @@ class Getter(RWrapper):
     def __str__(self):
         return self.__name__
 
-    def rem(self):
+    def remove(self):
         keys = self.keys_list()
         logger.debug('Deleting Redis keys {}'.format(keys))
+        if isinstance(keys, list):
+            for key in keys:
+                # print("{}:dash.{}".format(self.uuid, key.decode('utf-8')))
+                self.delete("{}:dash.{}".format(self.uuid, key.decode('utf-8')))
+        else:
+            # print("{}:dash.{}".format(self.uuid, keys))
+            self.delete("{}:dash.{}".format(self.uuid, keys.decode('utf-8')))
+
         self.delete(keys)

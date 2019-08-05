@@ -33,7 +33,7 @@ def param_input(input_type, graph_id=None, is_global=False):
     return dcc.Input(id=i, type='number', value='3', style={'width': '100%'})
 
 
-def dropdown(dropdown_type, graph_id=None, is_global=False):
+def dropdown(dropdown_type, multi=False, graph_id=None, is_global=False):
     ids = {
         'mode': 'lines-type-{}'.format(graph_id),
         'traces': 'traces-selector-{}'.format(graph_id)
@@ -42,33 +42,40 @@ def dropdown(dropdown_type, graph_id=None, is_global=False):
         ids = {'mode': 'global-lines-type',
                'figures': 'global-figures-selector',
                'stream': 'global-stream-selector',
-               'traces': 'global-traces-selector'}
+               'figure-traces': 'global-visible-traces-selector',
+               'traces': 'global-traces-selector',
+               'type': 'global-figure-type-selector'}
     try:
-        dd = {'mode':
+        empty_dropdown = dcc.Dropdown(
+            id=ids[dropdown_type],
+            options=[],
+            multi=multi
+        )
+        # TODO: Optimize memory in this dict
+        dd = {
+            'type': dcc.Dropdown(
+                        id=ids[dropdown_type],
+                        options=[{'label': 'scatter', 'value': 'scattergl'},
+                                 {'label': 'bar', 'value': 'bar'}],
+                        value='scattergl',
+                        multi=multi
+              ),
+            'mode':
               dcc.Dropdown(
                         id=ids[dropdown_type],
                         options=[{'label': 'Маркеры', 'value': 'markers'},
                                  {'label': 'Линии', 'value': 'lines'},
                                  {'label': 'Маркеры и линии', 'value': 'lines+markers'}],
-                        value='lines+markers'
+                        value='lines+markers',
+                        multi=multi
               ),
-              'stream':
-              dcc.Dropdown(
-                      id=ids[dropdown_type],
-                      options=[],
-              ),
-              'figures': dcc.Dropdown(
-                    id=ids[dropdown_type],
-                    options=[],
-                    multi=False
-              ),
-              'traces': dcc.Dropdown(
-                            id=ids[dropdown_type],
-                            options=[],
-                            multi=False
-              )}[dropdown_type]
-    except IndexError:
-        raise IndexError("For dropdown.figures you must use param 'is_global' with True value")
+            'stream': empty_dropdown,
+            'figures': empty_dropdown,
+            'figure-traces': empty_dropdown,
+            'traces': empty_dropdown,
+            }[dropdown_type]
+    except KeyError:
+        raise KeyError('KeyError Dropdown')
     return dd
 
 
@@ -78,7 +85,7 @@ def layout_settings_panel():
         dcc.Store(id='settings-storage', storage_type='local'),
         dcc.Input(id='is-setting-by-loading', value=0, style={'display': 'none'}),
         settings_panel()
-        ], style={'width': '33%', 'margin-left': '33%'})
+        ], style={'width': '40%', 'margin-left': '30%'})
 
 
 def settings_panel():
@@ -93,41 +100,56 @@ def settings_panel():
                     html.Hr(),
                     html.H5('График:'),
                     dropdown('figures', is_global=True),
+                    dbc.Col([
+                        dbc.Button('Добавить новый', id='create-graph',
+                                   color='primary', style={"width": "50%", 'margin-top': '10px'}),
+                        dbc.Button('Удалить', id='delete-graph',
+                                   color='danger', style={"width": "50%", 'margin-top': '10px'}),
+                    ]),
                     html.Hr(),
-                    html.H5('Поток:'),
-                    dropdown('stream', is_global=True),
-                    html.Hr(),
-                    html.H5('Объекты потока:'),
-                    dropdown('traces', is_global=True),
-                    html.Div(id='global-edit-block', children=[
-                        dbc.Row([
-                            dbc.Col([
-                                card('global-card-trace-name', 'Имя trace',
-                                     dcc.Input(id="global-input-trace-name",
-                                               type='text', style={'width': '100%'})),
+                    html.Div(id='children-figures', children=[
+                        html.H5('Тип графика'),
+                        dropdown('type', is_global=True),
+                        html.Hr(),
+                        html.H5('Поток:'),
+                        dropdown('stream', is_global=True),
+                        html.Hr(),
+                        html.H5('Отображаемые данные:'),
+                        dropdown('figure-traces', multi=True, is_global=True),
+                        html.Hr(),
+                        dbc.Card([
+                            dbc.CardHeader([html.H4('Настройки графика')]),
+                            dbc.CardBody([
+                                dropdown('traces', is_global=True),
                                 dbc.Row([
                                     dbc.Col([
-                                        card('global-card-line-color', 'Цвет линии', color_picker('line', is_global=True)),
-                                        card('global-card-line-width', 'Ширина линии', param_input('line-width', is_global=True)),
-                                        html.Hr(),
-                                    ]),
-                                    dbc.Col([
-                                        card('global-card-marker-color', 'Цвет маркера', color_picker('marker', is_global=True)),
-                                        card('global-card-marker-size', 'Размер маркера', param_input('marker-size', is_global=True)),
-                                        html.Hr(),
-                                    ]),
+                                        card('global-card-trace-name', 'Имя trace',
+                                             dcc.Input(id="global-input-trace-name",
+                                                       type='text', style={'width': '100%'})),
+                                        dbc.Row([
+                                            dbc.Col([
+                                                card('global-card-line-color', 'Цвет линии', color_picker('line', is_global=True)),
+                                                card('global-card-line-width', 'Ширина линии', param_input('line-width', is_global=True)),
+                                            ]),
+                                            dbc.Col([
+                                                card('global-card-marker-color', 'Цвет маркера', color_picker('marker', is_global=True)),
+                                                card('global-card-marker-size', 'Размер маркера', param_input('marker-size', is_global=True)),
+                                            ]),
+                                        ]),
+                                    ])
                                 ]),
+                                # режим линии (маркер, маркеры+линия, линия)
+                                card('card-line-type-selector', "Тип линии", dropdown('mode', is_global=True))
+                            ]),
+
+                            dbc.CardFooter([
+                                dbc.Button('Сохранить', id='btn-save-global-style',
+                                           color="primary", style={"width": "100%"}),
                             ])
-                        ]),
-                        # режим линии (маркер, маркеры+линия, линия)
-                        card('card-line-type-selector', "Тип линии", dropdown('mode', is_global=True))
+                        ], id='global-edit-block')
                     ])
                 ]),
             ]),
-            dbc.CardFooter([
-                dbc.Button('Сохранить', id='btn-save-global-style',
-                           color="primary", style={"width": "100%"}),
-            ])
     ])
 
     return cardd
