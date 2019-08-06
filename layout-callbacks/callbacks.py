@@ -9,11 +9,13 @@ RW = RWrapper(UUID)
 
 
 def update_figures(n, d, figure_type, selected_figure):
-    value = ''
+    value = None
+    is_value_set_none = 0
     if dash.callback_context.triggered[0]['prop_id'] == 'delete-graph.n_clicks':
         # print(RW.dash.child(selected_figure).val(), selected_figure)
         RW.dash.child(selected_figure).remove()
         value = None
+        is_value_set_none = 1
     elif dash.callback_context.triggered[0]['prop_id'] == 'global-figure-type-selector.value' and \
             figure_type is not None and selected_figure is not None:
         RW.dash.child(selected_figure).set({'type': figure_type})
@@ -28,7 +30,7 @@ def update_figures(n, d, figure_type, selected_figure):
         for i in RW.dash().keys():
             if 'figure' in i:
                 figures.append({'label': i, 'value': i})
-    if value == '':
+    if not is_value_set_none and n is not None:
         value = 'figure{}'.format(n)
     return figures, value
 
