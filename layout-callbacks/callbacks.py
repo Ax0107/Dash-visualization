@@ -310,15 +310,18 @@ def show_settings_block(value):
     return {'display': 'none'}
 
 
-def show_settings_for_figure_block(value):
+def load_settings_for_figure_block(figure):
     """
     Показывает следующий блок (с выбором потока и т.д.), если выбран график
-    :param value: dropdown-figures value
+    :param figure: выбранный график
     :return: style
     """
-    if value is not None and value != []:
-        return {}
-    return {'display': 'none'}
+    if figure is not None and figure != []:
+        figure_settings = RW.dash.child(figure).val()
+        stream = figure_settings.get('stream')
+        traces = figure_settings.get('traces')
+        return {}, stream, traces
+    return {'display': 'none'}, None, None
 
 # # # # # # # # Классы Callback # # # # # # # #
 
@@ -368,8 +371,10 @@ class SettingsPanel(CallbackObj):
 
         # Показ следующего блока настроек, если выбран график
         self.val.append(
-            ((Output('children-figures', 'style'),
-              [Input('global-figures-selector', 'value')]), show_settings_for_figure_block))
+            (([Output('children-figures', 'style'),
+               Output('global-stream-selector', 'value'),
+               Output('global-visible-traces-selector', 'value')],
+              [Input('global-figures-selector', 'value')]), load_settings_for_figure_block))
 
         # Юзер: *выбирает поток для отрисовки графика*
 
