@@ -17,7 +17,7 @@ def update_figures(n, d, figure_type, selected_figure):
     :param selected_figure: выбранный график
     :return: options for dropdown, value of dropdown
     """
-    value = None
+    value = selected_figure
     is_value_set_none = 0
 
     # Если мы удаляем график
@@ -47,8 +47,9 @@ def update_figures(n, d, figure_type, selected_figure):
 
     # Если мы не удаляли figure и нам не нужно ставить значение dropdown в None,
     # то ставим его в figureN
-    if not is_value_set_none and n is not None:
-        value = 'figure{}'.format(n)
+    if not is_value_set_none:
+        if n is not None:
+            value = 'figure{}'.format(n)
     return figures, value
 
 
@@ -96,7 +97,9 @@ def update_traces(figure, traces):
 
         # Удаление всех прошлых ключей traces
         for i in figure_childs.keys():
-            if i not in existing_traces:
+            print('I:', i)
+            # Если i - dict, то это trace. Иначе это просто переменная figure
+            if i not in existing_traces and isinstance(i, dict):
                 RW.dash.child(figure).child(i).remove()
 
         for i in range(0, len(traces)):
@@ -306,8 +309,8 @@ def show_settings_block(value):
 
 def show_settings_for_figure_block(value):
     """
-    Показывает блок, если нажата кнопка
-    :param value: обработчик кнопки
+    Показывает следующий блок (с выбором потока и т.д.), если выбран график
+    :param value: dropdown-figures value
     :return: style
     """
     if value is not None and value != []:
