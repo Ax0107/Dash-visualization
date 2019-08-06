@@ -93,7 +93,6 @@ def update_settings(selected_figure, selected_traces, trace_name, lines_type_opt
         trace_settings = RW.dash.child(selected_figure).child(selected_traces).val()
         figure_settings = RW.dash.child(selected_figure).val()
         # print('TRACE-SETTINGS:', trace_settings)
-        print(figure_settings)
         try:
             figure_type = figure_settings.get('type', 'scattergl')
         except AttributeError:
@@ -110,7 +109,7 @@ def update_settings(selected_figure, selected_traces, trace_name, lines_type_opt
 
             trace_line = trace_settings.get('line', {'color': DEFAULT_COLOR, 'width': 5})
             trace_line_color = {'rgb': trace_line.get('color', DEFAULT_COLOR)}
-            trace_line_color = {'rgb': get_dict_from_str(trace_line_color)}
+            trace_line_color = {'rgb': get_dict_from_str(trace_line_color['rgb'])}
             trace_line_width = trace_line.get('width', 5)
 
             return trace_name, trace_line_color, trace_marker_color, trace_line_width, \
