@@ -78,7 +78,7 @@ def update_stream(n):
     # TODO: поиск по приставке
     for i in RW.search("*:Rlist"):
         i = i.decode("utf-8")
-        streams.append({'label': i, 'value': i})
+        streams.append({'label': i.split(':')[1], 'value': i})
     return streams
 
 
@@ -97,7 +97,6 @@ def update_traces(figure, traces):
 
         # Удаление всех прошлых ключей traces
         for i in figure_childs.keys():
-            print('I:', i)
             # Если i - dict, то это trace. Иначе это просто переменная figure
             if i not in existing_traces and isinstance(i, dict):
                 RW.dash.child(figure).child(i).remove()
@@ -114,8 +113,9 @@ def update_traces(figure, traces):
             RW.dash.child(figure).set({'traces': traces})
         # Обновляем значение переменной figure_childs с новыми traces
         figure_childs = RW.dash.child(figure).val()
+        print(figure_childs)
         return [{'label': '{} ({})'.format(figure_childs[i]['name'], i), 'value': i}
-                for i in figure_childs.keys() if i != 'traces']
+                for i in figure_childs.keys() if i not in ['traces', 'name', 'type', 'stream']]
     return []
 
 
@@ -187,13 +187,14 @@ def update_settings(selected_traces, trace_name, lines_type_options, lines_type_
         {'display': 'none'}, {'display': 'none'}, lines_type_options
 
 
-def save_settings_to_redis(n, selected_figure, selected_traces, trace_name, line_color, marker_color, line_width,
+def save_settings_to_redis(n, selected_figure, selected_traces, selected_stream, trace_name, line_color, marker_color, line_width,
                            marker_size, lines_type):
     """
     Сохранение настроек в Redis
     :param n: обработчик кнопки "добавить" (n_clicks)
     :param selected_figure: выбранный графки
     :param selected_traces: выбранная линия
+    :param selected_stream: выбранный поток
     :param trace_name: новое имя (name) линии
     :param line_color: цвет линии
     :param marker_color: цвет маркера
@@ -202,12 +203,12 @@ def save_settings_to_redis(n, selected_figure, selected_traces, trace_name, line
     :param lines_type: тип линий графика
     :return: alert
     """
-    if dash.callback_context.triggered[0]['prop_id'] == 'btn-save-global-style.n_clicks'and selected_traces is not None\
-                                                                                            and selected_traces != []:
+    if dash.callback_context.triggered[0]['prop_id'] == 'btn-save-global-style.n_clicks'and \
+            selected_traces is not None and selected_traces != []:
 
         # Создаём словарь нужного формата
         trace_type = RW.dash.child(selected_figure).child(selected_traces).val().get('type', 'scattergl')
-        settings = to_settings_type(selected_figure, selected_traces, trace_type, trace_name,
+        settings = to_settings_type(selected_figure, selected_traces, selected_stream, trace_type, trace_name,
                                     line_color, marker_color, line_width, marker_size, lines_type)
         try:
             # Создаём ключ для того, чтобы отловить сохранение настроек и перезагрузить графики
@@ -219,12 +220,13 @@ def save_settings_to_redis(n, selected_figure, selected_traces, trace_name, line
     return [False, 'success', '']
 
 
-def to_settings_type(selected_figure, selected_traces, trace_type,
+def to_settings_type(selected_figure, selected_traces, selected_stream, trace_type,
                      new_trace_name, line_color, marker_color, line_width, marker_size, lines_type):
     """
     Преобразует данные к правильному типу (напр.: данные с color-picker в виде dict -> str)
     :param selected_figure: выбранный графки
     :param selected_traces: выбранная линия
+    :param selected_stream: выбранный поток
     :param trace_type: тип линии линии
     :param new_trace_name: новое имя (name) линии
     :param line_color: цвет линии
@@ -258,11 +260,12 @@ def to_settings_type(selected_figure, selected_traces, trace_type,
             setting = {selected_figure: {selected_traces: {
                                                 'line': {'color': line_color, 'width':  line_width},
                                                 'marker': {'color': marker_color, 'size': marker_size},
-                                         'name': new_trace_name, 'name_id': trace_name, 'mode': lines_type}}}
+                                         'name': new_trace_name, 'name_id': trace_name, 'mode': lines_type},
+                                         'stream': selected_stream}}
         else:
             setting = {selected_figure: {selected_traces: {
                 'marker': {'color': line_color, 'size': line_width},
-                'name': new_trace_name, 'name_id': trace_name, 'mode': lines_type}}}
+                'name': new_trace_name, 'name_id': trace_name, 'mode': lines_type}, 'stream': selected_stream}}
     return setting
 
 
@@ -416,6 +419,7 @@ class SettingsPanel(CallbackObj):
               [Input('btn-save-global-style', 'n_clicks')],
               [State('global-figures-selector', 'value'),
                State('global-traces-selector', 'value'),
+               State('global-stream-selector', 'value'),
                State('global-input-trace-name', 'value'),
                State('global-color-picker-line', 'value'),
                State('global-color-picker-marker', 'value'),
