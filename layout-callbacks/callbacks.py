@@ -34,22 +34,25 @@ def update_figures(n, d, figure_type, selected_figure):
 
     figures = []
 
-    # Если была нажата кнопка
-    if n is not None:
-        # Создаём новую фигуру в Redis
-        figure = 'figure{}'.format(n)
-        RW.dash.set({figure: {'name': figure, 'type': figure_type}})
-
+    counter_figures = 0
     if isinstance(RW.dash(), dict):
         for i in RW.dash().keys():
             if 'figure' in i:
+                counter_figures += 1
                 figures.append({'label': i, 'value': i})
+
+    # Если была нажата кнопка
+    if n is not None:
+        # Создаём новую фигуру в Redis
+        figure = 'figure{}'.format(counter_figures+1)
+        RW.dash.set({figure: {'name': figure, 'type': figure_type}})
+        figures.append({'label': figure, 'value': figure})
 
     # Если мы не удаляли figure и нам не нужно ставить значение dropdown в None,
     # то ставим его в figureN
     if not is_value_set_none:
         if n is not None:
-            value = 'figure{}'.format(n)
+            value = 'figure{}'.format(counter_figures+1)
     return figures, value
 
 
@@ -345,11 +348,6 @@ class CallbackObj(object):
 class SettingsPanel(CallbackObj):
     def __init__(self):
         super().__init__()
-        # При нажатии кнопки "открыть" показывается settings-panel
-        self.val.append(
-            ((Output('global-settings-panel', 'style'),
-              [Input('btn-open-global-style', 'n_clicks')]),
-             show_settings_block))
 
         # Загрузка данных о потоках
         self.val.append(
@@ -415,6 +413,12 @@ class SettingsPanel(CallbackObj):
             ((Output('global-edit-block', 'style'),
               [Input('global-visible-traces-selector', 'value'),
                Input('global-stream-selector', 'value')]), show_edit_block))
+
+        # При нажатии кнопки "открыть" показывается line-settings
+        self.val.append(
+            ((Output('global-settings-panel', 'style'),
+              [Input('btn-open-global-style', 'n_clicks')]),
+             show_settings_block))
 
         # Сохранение данных о traces в Redis
         self.val.append(

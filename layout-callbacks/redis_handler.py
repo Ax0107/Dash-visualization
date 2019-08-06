@@ -242,10 +242,9 @@ class RWrapper(object):
         """
         return self.r.keys(search_string)
 
-    def delete(self, keys):
-        # print(keys)
-        self.r.delete(keys)
-        print('Deleted Redis keys: {}'.format(keys))
+    def delete(self, key):
+        print('Deleting Redis key: {}'.format(key))
+        self.r.delete(key)
 
     def __getattr__(self, name):
         setattr(self, name, Getter(self.uuid, name))
