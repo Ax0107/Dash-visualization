@@ -14,14 +14,15 @@ def update_figures(n, d, figure_type, selected_figure):
         # print(RW.dash.child(selected_figure).val(), selected_figure)
         RW.dash.child(selected_figure).remove()
         value = None
-    elif dash.callback_context.triggered[0]['prop_id'] == 'global-figure-type-selector.value':
+    elif dash.callback_context.triggered[0]['prop_id'] == 'global-figure-type-selector.value' and \
+            figure_type is not None and selected_figure is not None:
         RW.dash.child(selected_figure).set({'type': figure_type})
 
     figures = []
     if n is not None:
         # Создаём новую фигуру в Redis
         figure = 'figure{}'.format(n)
-        RW.dash.set({figure: {'type': figure_type}})
+        RW.dash.set({figure: {'name': figure, 'type': figure_type}})
 
     if RW.dash() is not None:
         for i in RW.dash().keys():
@@ -51,11 +52,10 @@ def update_stream(n):
 
 
 def update_traces(figure, stream, traces):
-    # TODO: save figure traces to Redis
     # TODO: загрузка значений из Redis (!!!)
     if figure != [] and figure is not None:
         # print(figure)
-        figure_childs = RW.dash()[figure]
+        figure_childs = RW.dash.child(figure).val()
         if traces is not None and traces != []:
 
             # Удаление всех прошлых ключей traces
