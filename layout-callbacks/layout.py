@@ -95,30 +95,29 @@ def settings_panel():
                 html.H3('Глобальные настройки')
             ]),
             dbc.CardBody([
-                dbc.Button('Открыть/закрыть настройки стилей', id='btn-open-global-style',
-                           color="secondary", style={"width": "100%"}),
-                html.Div(id='global-settings-panel', style={'display': 'none'}, children=[
+                html.H5('График:'),
+                dropdown('figures', is_global=True),
+                dbc.Col([
+                    dbc.Button('Добавить новый', id='create-graph',
+                               color='primary', style={"width": "50%", 'margin-top': '10px'}),
+                    dbc.Button('Удалить', id='delete-graph',
+                               color='danger', style={"width": "50%", 'margin-top': '10px'}),
+                ]),
+                html.Hr(),
+                html.Div(id='children-figures', children=[
+                    html.H5('Тип графика'),
+                    dropdown('type', is_global=True),
                     html.Hr(),
-                    html.H5('График:'),
-                    dropdown('figures', is_global=True),
-                    dbc.Col([
-                        dbc.Button('Добавить новый', id='create-graph',
-                                   color='primary', style={"width": "50%", 'margin-top': '10px'}),
-                        dbc.Button('Удалить', id='delete-graph',
-                                   color='danger', style={"width": "50%", 'margin-top': '10px'}),
-                    ]),
+                    html.H5('Поток:'),
+                    dropdown('stream', is_global=True),
                     html.Hr(),
-                    html.Div(id='children-figures', children=[
-                        html.H5('Тип графика'),
-                        dropdown('type', is_global=True),
-                        html.Hr(),
-                        html.H5('Поток:'),
-                        dropdown('stream', is_global=True),
-                        html.Hr(),
-                        html.H5('Отображаемые данные:'),
-                        dropdown('figure-traces', multi=True, is_global=True),
-                        html.Hr(),
-                        dbc.Card([
+                    html.H5('Отображаемые данные:'),
+                    dropdown('figure-traces', multi=True, is_global=True),
+                    html.Hr(),
+                    dbc.Card([
+                        dbc.Button('Открыть/закрыть настройки стилей', id='btn-open-global-style',
+                                   color="secondary", style={"width": "100%"}),
+                        html.Div(id='global-settings-panel', style={'display': 'none'}, children=[
                             dbc.CardHeader([html.H4('Настройки графика')]),
                             dbc.CardBody([
                                 dropdown('traces', is_global=True),
@@ -129,12 +128,16 @@ def settings_panel():
                                                        type='text', style={'width': '100%'})),
                                         dbc.Row([
                                             dbc.Col([
-                                                card('global-card-line-color', 'Цвет линии', color_picker('line', is_global=True)),
-                                                card('global-card-line-width', 'Ширина линии', param_input('line-width', is_global=True)),
+                                                card('global-card-line-color', 'Цвет линии',
+                                                     color_picker('line', is_global=True)),
+                                                card('global-card-line-width', 'Ширина линии',
+                                                     param_input('line-width', is_global=True)),
                                             ]),
                                             dbc.Col([
-                                                card('global-card-marker-color', 'Цвет маркера', color_picker('marker', is_global=True)),
-                                                card('global-card-marker-size', 'Размер маркера', param_input('marker-size', is_global=True)),
+                                                card('global-card-marker-color', 'Цвет маркера',
+                                                     color_picker('marker', is_global=True)),
+                                                card('global-card-marker-size', 'Размер маркера',
+                                                     param_input('marker-size', is_global=True)),
                                             ]),
                                         ]),
                                     ])
@@ -147,9 +150,9 @@ def settings_panel():
                                 dbc.Button('Сохранить', id='btn-save-global-style',
                                            color="primary", style={"width": "100%"}),
                             ])
-                        ], id='global-edit-block')
-                    ])
-                ]),
+                        ])
+                    ], id='global-edit-block')
+                ])
             ]),
     ])
 
