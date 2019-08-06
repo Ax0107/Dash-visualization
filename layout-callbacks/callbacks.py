@@ -18,22 +18,8 @@ def update_figures(n, d, figure_type, selected_figure):
     :return: options for dropdown, value of dropdown
     """
     value = selected_figure
-    is_value_set_none = 0
-
-    # Если мы удаляем график
-    if dash.callback_context.triggered[0]['prop_id'] == 'delete-graph.n_clicks':
-        RW.dash.child(selected_figure).remove()
-        # Ставим значение dropdown в None
-        value = None
-        is_value_set_none = 1
-
-    # Если изменён тип графика
-    elif dash.callback_context.triggered[0]['prop_id'] == 'global-figure-type-selector.value' and \
-            figure_type is not None and selected_figure is not None:
-        RW.dash.child(selected_figure).type.set(figure_type)
 
     figures = []
-
     counter_figures = 0
     if isinstance(RW.dash(), dict):
         for i in RW.dash().keys():
@@ -41,18 +27,23 @@ def update_figures(n, d, figure_type, selected_figure):
                 counter_figures += 1
                 figures.append({'label': i, 'value': i})
 
-    # Если была нажата кнопка
-    if n is not None:
+    # Если мы удаляем график (value = None)
+    if dash.callback_context.triggered[0]['prop_id'] == 'delete-graph.n_clicks':
+        if selected_figure not in [[], None]:
+            RW.dash.child(selected_figure).remove()
+        value = None
+    # Если изменяем тип графика (value остаётся в selected_figure)
+    elif dash.callback_context.triggered[0]['prop_id'] == 'global-figure-type-selector.value' and \
+            figure_type is not None and selected_figure is not None:
+        RW.dash.child(selected_figure).type.set(figure_type)
+    # Если мы создаём график (value = new figure id)
+    elif dash.callback_context.triggered[0]['prop_id'] == 'create-graph.n_clicks':
         # Создаём новую фигуру в Redis
-        figure = 'figure{}'.format(counter_figures+1)
+        figure = 'figure{}'.format(counter_figures + 1)
         RW.dash.set({figure: {'name': figure, 'type': figure_type}})
         figures.append({'label': figure, 'value': figure})
+        value = figure
 
-    # Если мы не удаляли figure и нам не нужно ставить значение dropdown в None,
-    # то ставим его в figureN
-    if not is_value_set_none:
-        if n is not None:
-            value = 'figure{}'.format(counter_figures+1)
     return figures, value
 
 
@@ -85,14 +76,14 @@ def update_stream(n):
     return streams
 
 
-def update_traces(figure, traces):
+def update_traces(figure, stream, traces):
     """
     Обновление traces (в настройках линий) при выборе visible-traces из потока
     :param figure: выбранный график
+    :param stream: выбранный поток
     :param traces: выбранные visible-traces
     :return: options for dropdown
     """
-    # TODO: загрузка значений из Redis (!!!)
     if figure != [] and figure is not None and traces is not None and traces != []:
         figure_childs = RW.dash.child(figure).val()
 
@@ -106,14 +97,13 @@ def update_traces(figure, traces):
 
         for i in range(0, len(traces)):
             # Сохранение всех выбранных trace
-            # TODO: trace_type save
             RW.dash.child(figure).set({
                 'trace{}'.format(i): {
                     'name': traces[i],
                     'name_id': traces[i]}
                 }
             )
-            RW.dash.child(figure).set({'traces': traces})
+            RW.dash.child(figure).set({'traces': traces, 'stream': stream})
         # Обновляем значение переменной figure_childs с новыми traces
         figure_childs = RW.dash.child(figure).val()
         print(figure_childs)
@@ -289,14 +279,14 @@ def load_traces_from_redis_for_figure(figure_name):
     return result_traces
 
 
-def show_edit_block(a, b):
+def show_edit_block(traces, stream):
     """
     Показывает блок с настройками линий, если выбранны:
-    :param a: отображаемые линии
-    :param b: поток
+    :param traces: отображаемые линии
+    :param stream: поток
     :return: block style
     """
-    if a not in [[], None] and b not in [[], None]:
+    if traces not in [[], None] and stream not in [[], None]:
         return {}
     return {'display': 'none'}
 
@@ -385,6 +375,7 @@ class SettingsPanel(CallbackObj):
         self.val.append(
             ((Output('global-traces-selector', 'options'),
              [Input('global-figures-selector', 'value'),
+              Input('global-stream-selector', 'value'),
               Input('global-visible-traces-selector', 'value')]), update_traces))
 
         # Загрузка данных color-picker, input (etc.) исходя из данных в Redis
