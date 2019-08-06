@@ -26,7 +26,7 @@ def update_figures(n, d, figure_type, selected_figure):
         figure = 'figure{}'.format(n)
         RW.dash.set({figure: {'name': figure, 'type': figure_type}})
 
-    if RW.dash() is not None:
+    if isinstance(RW.dash(), dict):
         for i in RW.dash().keys():
             if 'figure' in i:
                 figures.append({'label': i, 'value': i})
@@ -56,25 +56,28 @@ def update_stream(n):
 def update_traces(figure, stream, traces):
     # TODO: загрузка значений из Redis (!!!)
     if figure != [] and figure is not None:
-        # print(figure)
         figure_childs = RW.dash.child(figure).val()
         if traces is not None and traces != []:
+            existing_traces = figure_childs.get('traces', [])
 
             # Удаление всех прошлых ключей traces
             for i in figure_childs.keys():
-                RW.dash.child(figure).child(i).remove()
+                if i not in existing_traces:
+                    RW.dash.child(figure).child(i).remove()
 
             for i in range(0, len(traces)):
                 # Сохранение всех выбранных trace
                 # TODO: trace_type save
                 RW.dash.child(figure).set(
-                    {'trace{}'.format(i):
-                         {'name': traces[i],
-                          'name_id': traces[i]}
+                    {'trace{}'.format(i): {
+                        'name': traces[i],
+                        'name_id': traces[i]}
                     }
                 )
+                RW.dash.child(figure).set({'traces': traces})
             figure_childs = RW.dash.child(figure).val()
-            return [{'label': '{} ({})'.format(figure_childs[i]['name'], i), 'value': i} for i in figure_childs.keys()]
+            print(figure_childs)
+            return [{'label': '{} ({})'.format(figure_childs[i]['name'], i), 'value': i} for i in figure_childs.keys() if i != 'traces']
     return []
 
 
@@ -88,16 +91,19 @@ def get_dict_from_str(color):
 DEFAULT_COLOR = {'r': 255, 'g': 100, 'b': 100, 'a': 1}
 
 
-def update_settings(selected_figure, selected_traces, trace_name, lines_type_options, lines_type_value):
+def update_settings(selected_traces, trace_name, lines_type_options, lines_type_value, selected_figure):
     if selected_figure != [] and selected_figure is not None and selected_traces != [] and selected_traces is not None:
         trace_settings = RW.dash.child(selected_figure).child(selected_traces).val()
-        figure_settings = RW.dash.child(selected_figure).val()
-        # print('TRACE-SETTINGS:', trace_settings)
+        try:
+            figure_settings = RW.dash.child(selected_figure).val()
+        except AttributeError:
+            figure_settings = {'type': 'scattergl', 'name': selected_figure}
         try:
             figure_type = figure_settings.get('type', 'scattergl')
         except AttributeError:
             figure_type = figure_settings
-        trace_type = trace_settings.get('type')
+        # print('FIGURE SETTINGS', figure_settings, 'TYPE', figure_type)
+        trace_type = figure_type
         trace_name = trace_settings.get('name')
         trace_marker = trace_settings.get('marker', {'color': DEFAULT_COLOR, 'width': 5})
         trace_marker_color = {'rgb': trace_marker.get('color', DEFAULT_COLOR)}
@@ -290,11 +296,11 @@ class SettingsPanel(CallbackObj):
                Output('global-card-marker-size', 'style'),
                Output('global-lines-type', 'options')],
 
-              [Input('global-figures-selector', 'value'),
-               Input('global-traces-selector', 'value')],
+              [Input('global-traces-selector', 'value')],
               [State('global-input-trace-name', 'value'),
                State('global-lines-type', 'options'),
-               State('global-lines-type', 'value')]), update_settings))
+               State('global-lines-type', 'value'),
+               State('global-figures-selector', 'value')]), update_settings))
 
         self.val.append(
             ((Output('global-edit-block', 'style'),
@@ -315,3 +321,4 @@ class SettingsPanel(CallbackObj):
                State('global-input-line-width', 'value'),
                State('global-input-marker-size', 'value'),
                State('global-lines-type', 'value')]), save_settings_to_redis))
+
