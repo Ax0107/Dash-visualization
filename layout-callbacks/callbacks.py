@@ -9,6 +9,14 @@ RW = RWrapper(UUID)
 
 
 def update_figures(n, d, figure_type, selected_figure):
+    """
+    Добавляет/удаляет/загружает графики в/из Redis
+    :param n: обработчик кнопки "добавить" (n_clicks)
+    :param d: обработчик кнопки "удалить" (n_clicks)
+    :param figure_type: тип фигуры из dropdown (scattergl/bar)
+    :param selected_figure: выбранный график
+    :return: options for dropdown, value of dropdown
+    """
     value = None
     is_value_set_none = 0
     if dash.callback_context.triggered[0]['prop_id'] == 'delete-graph.n_clicks':
@@ -36,6 +44,11 @@ def update_figures(n, d, figure_type, selected_figure):
 
 
 def update_stream_traces(value):
+    """
+    Загрузка/обновление traces из потока
+    :param value: id потока
+    :return: options for dropdown
+    """
     figures = []
     if value is not None:
         frame, end = Storage(id=value, preload=True).call(start=0, end=1)
@@ -46,6 +59,11 @@ def update_stream_traces(value):
 
 
 def update_stream(n):
+    """
+    Загрузка/обновление потоков из Redis
+    :param n: обработчик нажатия кнопки
+    :return: options for dropdown
+    """
     streams = []
     for i in RW.search("*:Rlist"):
         i = i.decode("utf-8")
@@ -53,31 +71,38 @@ def update_stream(n):
     return streams
 
 
-def update_traces(figure, stream, traces):
+def update_traces(figure, traces):
+    """
+    Обновление traces (в настройках линий) при выборе visible-traces из потока
+    :param figure: выбранный график
+    :param traces: выбранные visible-traces
+    :return: options for dropdown
+    """
     # TODO: загрузка значений из Redis (!!!)
-    if figure != [] and figure is not None:
+    if figure != [] and figure is not None and traces is not None and traces != []:
         figure_childs = RW.dash.child(figure).val()
-        if traces is not None and traces != []:
-            existing_traces = figure_childs.get('traces', [])
 
-            # Удаление всех прошлых ключей traces
-            for i in figure_childs.keys():
-                if i not in existing_traces:
-                    RW.dash.child(figure).child(i).remove()
+        existing_traces = figure_childs.get('traces', [])
 
-            for i in range(0, len(traces)):
-                # Сохранение всех выбранных trace
-                # TODO: trace_type save
-                RW.dash.child(figure).set(
-                    {'trace{}'.format(i): {
-                        'name': traces[i],
-                        'name_id': traces[i]}
-                    }
-                )
-                RW.dash.child(figure).set({'traces': traces})
-            figure_childs = RW.dash.child(figure).val()
-            print(figure_childs)
-            return [{'label': '{} ({})'.format(figure_childs[i]['name'], i), 'value': i} for i in figure_childs.keys() if i != 'traces']
+        # Удаление всех прошлых ключей traces
+        for i in figure_childs.keys():
+            if i not in existing_traces:
+                RW.dash.child(figure).child(i).remove()
+
+        for i in range(0, len(traces)):
+            # Сохранение всех выбранных trace
+            # TODO: trace_type save
+            RW.dash.child(figure).set({
+                'trace{}'.format(i): {
+                    'name': traces[i],
+                    'name_id': traces[i]}
+                }
+            )
+            RW.dash.child(figure).set({'traces': traces})
+        figure_childs = RW.dash.child(figure).val()
+        print(figure_childs)
+        return [{'label': '{} ({})'.format(figure_childs[i]['name'], i), 'value': i}
+                for i in figure_childs.keys() if i != 'traces']
     return []
 
 
@@ -92,6 +117,17 @@ DEFAULT_COLOR = {'r': 255, 'g': 100, 'b': 100, 'a': 1}
 
 
 def update_settings(selected_traces, trace_name, lines_type_options, lines_type_value, selected_figure):
+    """
+    Загружает данные из Redis
+    :param selected_traces: выбранная линия
+    :param trace_name: имя (name) линии
+    :param lines_type_options: dropdown options
+    :param lines_type_value: dropdown value
+    :param selected_figure: выбранный график
+    :return: trace_name, trace_line_color, trace_marker_color, trace_line_width, \
+                trace_marker_size, trace_lines_type, styles (marker color-picker/marker size input), \
+                    options for dropdown (lines_type)
+    """
     if selected_figure != [] and selected_figure is not None and selected_traces != [] and selected_traces is not None:
         trace_settings = RW.dash.child(selected_figure).child(selected_traces).val()
         try:
@@ -137,6 +173,19 @@ def update_settings(selected_traces, trace_name, lines_type_options, lines_type_
 
 def save_settings_to_redis(n, selected_figure, selected_traces, trace_name, line_color, marker_color, line_width,
                            marker_size, lines_type):
+    """
+    Сохранение настроек в Redis
+    :param n: обработчик кнопки "добавить" (n_clicks)
+    :param selected_figure: выбранный графки
+    :param selected_traces: выбранная линия
+    :param trace_name: новое имя (name) линии
+    :param line_color: цвет линии
+    :param marker_color: цвет маркера
+    :param line_width: ширина линии
+    :param marker_size: размер маркера
+    :param lines_type: тип линий графика
+    :return: alert
+    """
     if dash.callback_context.triggered[0]['prop_id'] == 'btn-save-global-style.n_clicks'and selected_traces is not None\
                                                                                             and selected_traces != []:
 
@@ -155,7 +204,21 @@ def save_settings_to_redis(n, selected_figure, selected_traces, trace_name, line
     return [False, 'success', '']
 
 
-def to_settings_type(selected_figure, selected_traces, trace_type, new_trace_name, line_color, marker_color, line_width, marker_size, lines_type):
+def to_settings_type(selected_figure, selected_traces, trace_type,
+                     new_trace_name, line_color, marker_color, line_width, marker_size, lines_type):
+    """
+    Преобразует данные к правильному типу (напр.: данные с color-picker в виде dict -> str)
+    :param selected_figure: выбранный графки
+    :param selected_traces: выбранная линия
+    :param trace_type: тип линии линии
+    :param new_trace_name: новое имя (name) линии
+    :param line_color: цвет линии
+    :param marker_color: цвет маркера
+    :param line_width: ширина линии
+    :param marker_size: размер маркера
+    :param lines_type: тип линий графика
+    :return: settings (dict)
+    """
     setting = []
     if selected_traces is not None:
         # print(selected_traces)
@@ -183,6 +246,11 @@ def to_settings_type(selected_figure, selected_traces, trace_type, new_trace_nam
 
 
 def load_traces_from_redis_for_figure(figure_name):
+    """
+    Загружает все traces из Redis для выбранного графика
+    :param figure_name: выбранный графки
+    :return: options for dropdown
+    """
     traces = RW.dash.child(figure_name).val()
     result_traces = []
     for trace in traces:
@@ -198,12 +266,23 @@ def load_traces_from_redis_for_figure(figure_name):
 
 
 def show_edit_block(a, b):
+    """
+    Показывает блок с настройками линий, если выбранны:
+    :param a: отображаемые линии
+    :param b: поток
+    :return: block style
+    """
     if a not in [[], None] and b not in [[], None]:
         return {}
     return {'display': 'none'}
 
 
 def show_settings_block(value):
+    """
+    Показывает блок, если нажата кнопка
+    :param value: обработчик кнопки
+    :return: style
+    """
     if value:
         if value % 2 != 0:
             return {}
@@ -211,6 +290,11 @@ def show_settings_block(value):
 
 
 def show_settings_for_figure_block(value):
+    """
+    Показывает блок, если нажата кнопка
+    :param value: обработчик кнопки
+    :return: style
+    """
     if value is not None and value != []:
         return {}
     return {'display': 'none'}
@@ -277,7 +361,6 @@ class SettingsPanel(CallbackObj):
         self.val.append(
             ((Output('global-traces-selector', 'options'),
              [Input('global-figures-selector', 'value'),
-              Input('global-stream-selector', 'value'),
               Input('global-visible-traces-selector', 'value')]), update_traces))
 
         # Загрузка данных color-picker, input (etc.) исходя из данных в Redis
