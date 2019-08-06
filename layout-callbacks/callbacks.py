@@ -30,7 +30,7 @@ def update_figures(n, d, figure_type, selected_figure):
     # Если изменён тип графика
     elif dash.callback_context.triggered[0]['prop_id'] == 'global-figure-type-selector.value' and \
             figure_type is not None and selected_figure is not None:
-        RW.dash.child(selected_figure).set({'type': figure_type})
+        RW.dash.child(selected_figure).type.set(figure_type)
 
     figures = []
 
@@ -159,7 +159,7 @@ def update_settings(selected_traces, trace_name, lines_type_options, lines_type_
         trace_marker_color = {'rgb': get_dict_from_str(trace_marker_color['rgb'])}
         trace_marker_size = trace_marker.get('size', 10)
 
-        if figure_type == 'scattergl' or figure_type is None:
+        if figure_type in [None, 'scattergl', 'trajectory']:
             trace_lines_type = trace_settings.get('mode', 'lines+markers')
 
             trace_line = trace_settings.get('line', {'color': DEFAULT_COLOR, 'width': 5})

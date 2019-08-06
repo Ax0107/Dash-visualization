@@ -55,7 +55,8 @@ def dropdown(dropdown_type, multi=False, graph_id=None, is_global=False):
         dd = {
             'type': dcc.Dropdown(
                         id=ids[dropdown_type],
-                        options=[{'label': 'scatter', 'value': 'scattergl'},
+                        options=[{'label': 'Траектория', 'value': 'trajectory'},
+                                 {'label': 'scatter', 'value': 'scattergl'},
                                  {'label': 'bar', 'value': 'bar'}],
                         value='scattergl',
                         multi=multi
