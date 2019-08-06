@@ -257,10 +257,7 @@ def load_traces_from_redis_for_figure(figure_name):
         if trace == 'traces':
             continue
         settings = traces[trace]
-        try:
-            name = settings['name']
-        except KeyError:
-            name = trace
+        name = settings.get('name', trace)
         result_traces.append({'label': '{} ({})'.format(name, trace), 'value': trace})
     return result_traces
 
