@@ -10,10 +10,11 @@ import pandas as pd
 import redis
 from bs4 import BeautifulSoup
 
-from config.const import REDISHOST, REDISPORT, REDISMAXPULL, TIMEZONE,APPID
+from config.const import REDISHOST, REDISPORT, REDISMAXPULL, TIMEZONE, APPID
 
-from logger import logger
-logger = logger('redis_handler')
+LOG_LEVEL = logging.DEBUG
+logger = logging.getLogger('redis hook')
+logger.setLevel(LOG_LEVEL)
 
 r = redis.Redis(
     host=REDISHOST,
@@ -68,7 +69,7 @@ def prepare(redis_resp, utc, step):
 
 class Storage(object):
 
-    def __init__(self, id='S_0:Trajectory:Rlist', step='500ms', preload=False):
+    def __init__(self, id='0:Trajectory:Rlist', step='500ms', preload=True):
         self.step = step
         self.id = id
         self.redis_wrapper = RWrapper()
@@ -93,9 +94,43 @@ class Storage(object):
 
 
 class RWrapper(object):
-    """This class handles all of connections to redis instances.
-    Writing to redis Done asynchronously, reading - synchronously
-    Usage - RWrapper(objectid).key.val()
+    """Interface for handling Redis-stored data
+    Redis is expected to contain
+    keys in id:key:type format
+
+    Ids may be:
+    user uuid for storing user-related data
+    S_number for storing stream data
+    Number
+    Reserved ids :
+    1-1000 for APPID's
+
+    Keys is expected to be nested, i.e. dash.figure1.trace.marker.color
+    Keys should not overlap, for example there shouldn't be a key dash if there is a key dash.figure1.settings
+
+    Supported types are
+    int,float (bool values are converted to int)
+    str (preferrably not longer than 64 bytes)
+    list - for short lists, stored as string
+    Rlist - redis lists, for storing large amounts of data
+
+    Access to nested keys provided via Getter class.
+    Usage:
+    RWrapper(id).nested.named.key.func()
+    Callable methods of Getter
+
+    val() returns value at key. Interchangeable with directly calling an instance
+    If you provide only partial key name, returns nested dict. RWrapper(id).dash.figure1.trace1.marker.size.val() would return int,
+    RWrapper(id).dash.figure1.trace1() would return {marker{size:..}...}
+
+    set() - puts key into Redis. Same logic as val()
+
+    rem() removes key. Same logic as val()
+
+    child() - getter for next element. Example:trace='trace1'; RWrapper(id).dash.figure1.child(trace).val()
+
+    get_children() - returns set of child objects
+
     """
 
     def __init__(self, uuid=None):
@@ -104,7 +139,6 @@ class RWrapper(object):
 
     @staticmethod
     def loading(val=1):
-        key_loading = '{}:counterLoading:int'.format(APPID)
         if val > 0:
             RWrapper(APPID).counterLoading.set(int(RWrapper(APPID).counterLoading() or 0) + val)
             RWrapper(APPID).loaded.set(0)
@@ -123,7 +157,7 @@ class RWrapper(object):
             for i in bull.children:
                 if i.name:
                     attrs = i.attrs
-                    id = attrs.pop('TrackNumber', '0')
+                    id = 'S_' +attrs.pop('TrackNumber', '0')
                     if int(i.attrs['PacketNumber']) == 0 or self.r.get(i.name + '.starttime:int') is None:
                         self.r.set(id + ':' + i.name + '.starttime:int', int(time.time() - float(i.attrs['Time'])))
                     try:
@@ -200,6 +234,9 @@ class RWrapper(object):
 
         return dict_data
 
+    def get_user(self):
+        return self.uuid
+
     def get_one_key(self, key):
         """
         :param key: Redis key
@@ -229,7 +266,6 @@ class RWrapper(object):
         params = param.split('.', 1)
         if len(params) == 1:
             dict_little[params[0]] = value
-
         else:
             dict_little[params[0]] = self.put_key(params[1], value, dict_little.get(params[0], {}))
         return dict_little
@@ -241,9 +277,10 @@ class RWrapper(object):
         """
         return self.r.keys(search_string)
 
-    def delete(self, key):
-        print('Deleting Redis key: {}'.format(key))
-        self.r.delete(key)
+    def delete(self, keys):
+        print(keys)
+        for key in keys:
+            self.r.delete(key)
 
     def __getattr__(self, name):
         setattr(self, name, Getter(self.uuid, name))
@@ -268,9 +305,6 @@ class Getter(RWrapper):
                 return self.__comp__(d[key])
         return {}
 
-    def child(self, name):
-        return self.__getattr__(name)
-
     def get_children(self, search_str=''):
         """
         :param search_str:
@@ -278,6 +312,9 @@ class Getter(RWrapper):
         """
         return set([getattr(self, i.decode().partition(self.uuid + ':' + self.__name__)[2].split('.')[1].split(':')[0]) \
                     for i in self.keys_list() if search_str in i.decode()])
+
+    def child(self, name):
+        return self.__getattr__(name)
 
     def val(self):
         """
@@ -301,8 +338,7 @@ class Getter(RWrapper):
                 if default:
                     return default
             else:
-                logger.info(AttributeError('No such keys in Redis - {}:{}. Returning None'.format(self.uuid, self.__name__)))
-                return None
+                raise AttributeError('No such keys in Redis - {}:{}'.format(self.uuid, self.__name__))
 
     def keys_list(self):
         """
@@ -334,11 +370,7 @@ class Getter(RWrapper):
     def __str__(self):
         return self.__name__
 
-    def remove(self):
+    def rem(self):
         keys = self.keys_list()
         logger.debug('Deleting Redis keys {}'.format(keys))
-        if isinstance(keys, list):
-            for key in keys:
-                self.delete(key.decode('utf-8'))
-        else:
-            self.delete(keys.decode('utf-8'))
+        self.delete(keys)

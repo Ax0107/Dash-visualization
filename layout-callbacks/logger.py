@@ -11,7 +11,10 @@ def logger(name):
     logger = Logger(name)
     """
     filename = datetime.datetime.now().strftime(LOG_NAME_FORMAT)
-    logging.basicConfig(filename='logs/'+filename, level=LOG_LEVEL)
+    try:
+        logging.basicConfig(filename='logs/'+filename, level=LOG_LEVEL)
+    except:
+        pass
     logger = logging.getLogger(name)
     logger.setLevel(LOG_LEVEL)
     logging.root.setLevel(LOG_LEVEL)

@@ -25,16 +25,19 @@ def update_figures(n, d, figure_type, selected_figure):
 
     figures = []
     counter_figures = 0
-    if isinstance(RW.dash(), dict):
-        for i in RW.dash().keys():
-            if 'figure' in i:
-                counter_figures += 1
-                figures.append({'label': i, 'value': i})
+    try:
+        if isinstance(RW.dash(), dict):
+            for i in RW.dash().keys():
+                if 'figure' in i:
+                    counter_figures += 1
+                    figures.append({'label': i, 'value': i})
+    except AttributeError:
+        logger.debug('No dash keys in Redis.')
 
     # Если мы удаляем график (value = None)
     if dash.callback_context.triggered[0]['prop_id'] == 'delete-graph.n_clicks':
         if selected_figure not in [[], None]:
-            RW.dash.child(selected_figure).remove()
+            RW.dash.child(selected_figure).rem()
         value = None
     # Если изменяем тип графика (value остаётся в selected_figure)
     elif dash.callback_context.triggered[0]['prop_id'] == 'global-figure-type-selector.value' and \
@@ -44,7 +47,7 @@ def update_figures(n, d, figure_type, selected_figure):
     elif dash.callback_context.triggered[0]['prop_id'] == 'create-graph.n_clicks':
         # Создаём новую фигуру в Redis
         figure = 'figure{}'.format(counter_figures + 1)
-        RW.dash.set({figure: {'name': figure, 'type': figure_type}})
+        RW.dash.set({figure: {'name': figure, 'graph_type': figure_type}})
         figures.append({'label': figure, 'value': figure})
         value = figure
 
@@ -89,15 +92,15 @@ def update_traces(figure, stream, traces):
     :return: options for dropdown
     """
     if figure != [] and figure is not None and traces is not None and traces != []:
-        figure_childs = RW.dash.child(figure).val()
+        figure_children = RW.dash.child(figure).val()
 
-        existing_traces = figure_childs.get('traces', [])
+        existing_traces = figure_children.get('traces', [])
 
         # Удаление всех прошлых ключей traces
-        for i in figure_childs.keys():
+        for i in figure_children.keys():
             # Если i - dict, то это trace. Иначе это просто переменная figure
             if i not in existing_traces and isinstance(i, dict):
-                RW.dash.child(figure).child(i).remove()
+                RW.dash.child(figure).child(i).rem()
 
         for i in range(0, len(traces)):
             # Сохранение всех выбранных trace
@@ -108,11 +111,11 @@ def update_traces(figure, stream, traces):
                 }
             )
             RW.dash.child(figure).set({'traces': traces, 'stream': stream})
-        # Обновляем значение переменной figure_childs с новыми traces
-        figure_childs = RW.dash.child(figure).val()
-        print(figure_childs)
-        return [{'label': '{} ({})'.format(figure_childs[i]['name'], i), 'value': i}
-                for i in figure_childs.keys() if i not in ['traces', 'name', 'type', 'stream']]
+        # Обновляем значение переменной figure_children с новыми traces
+        figure_children = RW.dash.child(figure).val()
+        print(figure_children)
+        return [{'label': '{} ({})'.format(figure_children[i]['name'], i), 'value': i}
+                for i in figure_children.keys() if 'trace' in i and i != 'traces']
     return []
 
 
@@ -123,14 +126,17 @@ def get_dict_from_str(color):
     :return: rgb-dict
     """
     if isinstance(color, str):
-        print('C:', color, color[4:-1])
-        color = color[4:-1].split(',')
-        color = {'r': color[0], 'g': color[1], 'b': color[2], 'a': color[3]}
+        # print('C:', color, color[5:-1])
+        color = color[5:-1].split(',')
+        try:
+            color = {'r': int(color[0]), 'g': int(color[1]), 'b': int(color[2]), 'a': int(color[3])}
+        except:
+            logger.warning('Can not get color-dict from string.')
     return color
 
 
 DEFAULT_COLOR = {'r': 255, 'g': 100, 'b': 100, 'a': 1}
-
+DEFAULT_COLOR_STR = 'rgba(255,100,100,1)'
 
 def update_settings(selected_traces, trace_name, lines_type_options, lines_type_value, selected_figure):
     """
@@ -149,9 +155,9 @@ def update_settings(selected_traces, trace_name, lines_type_options, lines_type_
         try:
             figure_settings = RW.dash.child(selected_figure).val()
         except AttributeError:
-            figure_settings = {'type': 'scattergl', 'name': selected_figure}
+            figure_settings = {'graph_type': 'scattergl', 'name': selected_figure}
         try:
-            figure_type = figure_settings.get('type', 'scattergl')
+            figure_type = figure_settings.get('graph_type', 'scattergl')
         except AttributeError:
             figure_type = figure_settings
         trace_name = trace_settings.get('name')
@@ -160,7 +166,7 @@ def update_settings(selected_traces, trace_name, lines_type_options, lines_type_
         trace_marker_color = {'rgb': get_dict_from_str(trace_marker_color['rgb'])}
         trace_marker_size = trace_marker.get('size', 10)
 
-        if figure_type in [None, 'scattergl', 'trajectory']:
+        if figure_type.lower() in [None, 'scattergl', 'trajectory']:
             trace_lines_type = trace_settings.get('mode', 'lines+markers')
 
             trace_line = trace_settings.get('line', {'color': DEFAULT_COLOR, 'width': 5})
@@ -205,7 +211,7 @@ def save_settings_to_redis(n, selected_figure, selected_traces, selected_stream,
             selected_traces is not None and selected_traces != []:
 
         # Создаём словарь нужного формата
-        trace_type = RW.dash.child(selected_figure).child(selected_traces).val().get('type', 'scattergl')
+        trace_type = RW.dash.child(selected_figure).child(selected_traces).val().get('graph_type', 'scattergl')
         settings = to_settings_type(selected_figure, selected_traces, selected_stream, trace_type, trace_name,
                                     line_color, marker_color, line_width, marker_size, lines_type)
         try:
@@ -254,6 +260,7 @@ def to_settings_type(selected_figure, selected_traces, selected_stream, trace_ty
             except KeyError:
                 # Если данные уже приведены к нужному типу
                 pass
+
 
             setting = {selected_figure: {selected_traces: {
                                                 'line': {'color': line_color, 'width':  line_width},
