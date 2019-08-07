@@ -3,6 +3,8 @@ import layout
 import callbacks
 import dash
 import dash_bootstrap_components as dbc
+from logger import Logger
+logger = Logger('run').logger
 
 external_stylesheets = [dbc.themes.BOOTSTRAP]
 
@@ -20,4 +22,5 @@ for opts, funcs in callbacks.Callbacks("SettingsPanel")():
     functions.append(app.callback(*opts)(funcs))
 
 if __name__ == '__main__':
+    logger.info('Server starting..')
     app.run_server(debug=True, threaded=True)

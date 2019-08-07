@@ -1,6 +1,7 @@
 import socket
 import logging
 
+
 def get_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
@@ -17,8 +18,11 @@ def get_ip():
 """_________________________________LOG_SETTINGS__________________________________"""
 
 LOG_LEVEL = logging.DEBUG
-LOG_FORMAT = " %(log_color)s- %(name)s-%(levelname)-8s%(reset)s | %(log_color)s%(message)s%(reset)s"
+LOG_FORMAT = "%(log_color)s %(asctime)s %(name)s-%(levelname)-8s%(reset)s | %(log_color)s%(message)s%(reset)s"
+# LOG_FORMAT = '%(asctime)s.%(msecs)03d %(log_color)s %(levelname)s %(module)s - %(funcName)s: %(message)s'
 LOG_NAME_FORMAT = "%Y-%m-%d.log"
+Handler = logging.StreamHandler()
+
 
 # loading +=1
 APPID = 0
