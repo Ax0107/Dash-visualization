@@ -1,5 +1,5 @@
 import socket
-
+import logging
 
 def get_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -12,6 +12,12 @@ def get_ip():
     finally:
         s.close()
     return IP
+
+
+"""_________________________________LOG_SETTINGS__________________________________"""
+
+LOG_LEVEL = logging.DEBUG
+LOG_FORMAT = " %(log_color)s- %(name)s-%(levelname)-8s%(reset)s | %(log_color)s%(message)s%(reset)s"
 
 
 # loading +=1
@@ -61,3 +67,6 @@ defaults = {'dash': {'figure1': dict(trace0={'marker': {'color': {'a': 0.26, 'g'
                                                       "width": "90vw", "height": "90vh"}),
                                 graph_type='Trajectory'
                                  )}}
+
+
+

@@ -69,7 +69,7 @@ def prepare(redis_resp, utc, step):
 
 class Storage(object):
 
-    def __init__(self, id='0:Trajectory:Rlist', step='500ms', preload=False):
+    def __init__(self, id='S_0:Trajectory:Rlist', step='500ms', preload=False):
         self.step = step
         self.id = id
         self.redis_wrapper = RWrapper()

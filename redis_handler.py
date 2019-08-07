@@ -10,7 +10,7 @@ import pandas as pd
 import redis
 from bs4 import BeautifulSoup
 
-from config.const import REDISHOST, REDISPORT, REDISMAXPULL, TIMEZONE
+from config.const import REDISHOST, REDISPORT, REDISMAXPULL, TIMEZONE, APPID
 
 LOG_LEVEL = logging.DEBUG
 logger = logging.getLogger('redis hook')
@@ -25,6 +25,8 @@ def getbuiltin_method(method, val):
     "Hacky wrapper, needs rewriting"
     if method == 'list':
         return re.findall("\w+", val)
+    elif method=='bytes':
+        return int(val)
     else:
         try:
             return getattr(__builtins__, method)(val)
@@ -67,13 +69,14 @@ def prepare(redis_resp, utc, step):
 
 class Storage(object):
 
-    def __init__(self, id='0:Trajectory:Rlist', step='500ms'):
+    def __init__(self, id='0:Trajectory:Rlist', step='500ms', preload=True):
         self.step = step
         self.id = id
         self.redis_wrapper = RWrapper()
-        to_df, self.end = self.redis_wrapper.pull(self.id, 0, 0)
-        if to_df is not None and type(to_df) is pd.DataFrame and not to_df.empty:
-            self.df = prepare(to_df, False, step)
+        if preload:
+            to_df, self.end = self.redis_wrapper.pull(self.id, 0, 0)
+            if to_df is not None and type(to_df) is pd.DataFrame and not to_df.empty:
+                self.df = prepare(to_df, False, step)
 
     def get_size(self):
         return self.redis_wrapper.get_size(self.id)
@@ -91,21 +94,57 @@ class Storage(object):
 
 
 class RWrapper(object):
-    """This class handles all of connections to redis instances.
-    Writing to redis Done asynchronously, reading - synchronously
-    Usage - RWrapper(objectid).key.val()
+    """Interface for handling Redis-stored data
+    Redis is expected to contain
+    keys in id:key:type format
+
+    Ids may be:
+    user uuid for storing user-related data
+    S_number for storing stream data
+    Number
+    Reserved ids :
+    1-1000 for APPID's
+
+    Keys is expected to be nested, i.e. dash.figure1.trace.marker.color
+    Keys should not overlap, for example there shouldn't be a key dash if there is a key dash.figure1.settings
+
+    Supported types are
+    int,float (bool values are converted to int)
+    str (preferrably not longer than 64 bytes)
+    list - for short lists, stored as string
+    Rlist - redis lists, for storing large amounts of data
+
+    Access to nested keys provided via Getter class.
+    Usage:
+    RWrapper(id).nested.named.key.func()
+    Callable methods of Getter
+
+    val() returns value at key. Interchangeable with directly calling an instance
+    If you provide only partial key name, returns nested dict. RWrapper(id).dash.figure1.trace1.marker.size.val() would return int,
+    RWrapper(id).dash.figure1.trace1() would return {marker{size:..}...}
+
+    set() - puts key into Redis. Same logic as val()
+
+    rem() removes key. Same logic as val()
+
+    child() - getter for next element. Example:trace='trace1'; RWrapper(id).dash.figure1.child(trace).val()
+
+    get_children() - returns set of child objects
+
     """
 
     def __init__(self, uuid=None):
         self.uuid = uuid
         self.r = r
 
-    def loading(self, val=1):
+    @staticmethod
+    def loading(val=1):
         if val > 0:
-            self.r.set('0:counterLoading:int', int(self.r.get('0:counterLoading:int') or 0) + val)
+            RWrapper(APPID).counterLoading.set(int(RWrapper(APPID).counterLoading() or 0) + val)
+            RWrapper(APPID).loaded.set(0)
         else:
-            self.r.set('0:counterLoading:int', 0)
-        self.r.set('0:AppLoaded:byte', 0)
+            RWrapper(APPID).counterLoading.set(0)
+        return RWrapper(APPID).counterLoading()
 
     async def push_xml(self, xml):
         """Pushes XML Into Redis List, assuming the time counted from stream start
@@ -118,7 +157,7 @@ class RWrapper(object):
             for i in bull.children:
                 if i.name:
                     attrs = i.attrs
-                    id = attrs.pop('TrackNumber', '0')
+                    id = 'S_' +attrs.pop('TrackNumber', '0')
                     if int(i.attrs['PacketNumber']) == 0 or self.r.get(i.name + '.starttime:int') is None:
                         self.r.set(id + ':' + i.name + '.starttime:int', int(time.time() - float(i.attrs['Time'])))
                     try:

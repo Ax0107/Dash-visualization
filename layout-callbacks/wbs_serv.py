@@ -13,6 +13,7 @@ LOG_LEVEL = logging.DEBUG
 logger = logging.getLogger('server')
 logger.setLevel(LOG_LEVEL)
 
+
 class Server(object):
     def __init__(self):
         self.ip, self.port = '0.0.0.0', TCPPORT
