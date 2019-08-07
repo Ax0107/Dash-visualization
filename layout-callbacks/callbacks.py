@@ -3,8 +3,8 @@ import dash
 from redis_handler import RWrapper, Storage
 import pandas as pd
 
-from logger import Logger
-logger = Logger('callbacks')
+from logger import logger
+logger = logger('callbacks')
 
 
 # # # # # # # # Функции для callback'ов # # # # # # # #
@@ -123,7 +123,8 @@ def get_dict_from_str(color):
     :return: rgb-dict
     """
     if isinstance(color, str):
-        color = color[3:-1].split(',')
+        print('C:', color, color[4:-1])
+        color = color[4:-1].split(',')
         color = {'r': color[0], 'g': color[1], 'b': color[2], 'a': color[3]}
     return color
 
@@ -240,7 +241,7 @@ def to_settings_type(selected_figure, selected_traces, selected_stream, trace_ty
         # Преобразование формата получаемого color_picker в rgb-string
         try:
             line_color = 'rgba({},{},{},{})'.format(line_color['rgb']['r'], line_color['rgb']['g'],
-                                                   line_color['rgb']['b'], line_color['rgb']['a'])
+                                                    line_color['rgb']['b'], line_color['rgb']['a'])
         except KeyError:
             # Если данные уже приведены к нужному типу
             pass

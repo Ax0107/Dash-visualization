@@ -3,8 +3,8 @@ import layout
 import callbacks
 import dash
 import dash_bootstrap_components as dbc
-from logger import Logger
-logger = Logger('run').logger
+from logger import logger
+logger = logger('run')
 
 external_stylesheets = [dbc.themes.BOOTSTRAP]
 
