@@ -1,21 +1,19 @@
 import logging
 from colorlog import ColoredFormatter
-from config.const import LOG_LEVEL, LOG_FORMAT
+from config.const import LOG_LEVEL, LOG_FORMAT, LOG_NAME_FORMAT
 import datetime
 
 
 class Logger(object):
-    def __init__(self, name, log_level, log_format):
-        filename = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S.log")
-        logging.basicConfig(filename=filename, level=log_level)
+    def __init__(self, name):
+        filename = datetime.datetime.now().strftime(LOG_NAME_FORMAT)
+        logging.basicConfig(filename='logs/'+filename, level=LOG_LEVEL)
         self.logger = logging.getLogger(name)
-        self.logger.setLevel(log_level)
-        logging.root.setLevel(log_level)
-        formatter = ColoredFormatter(log_format)
+        self.logger.setLevel(LOG_LEVEL)
+        logging.root.setLevel(LOG_LEVEL)
+        formatter = ColoredFormatter(LOG_FORMAT)
         stream = logging.StreamHandler()
-        stream.setLevel(log_level)
+        stream.setLevel(LOG_LEVEL)
         stream.setFormatter(formatter)
         self.logger.addHandler(stream)
 
-
-logger = Logger('redis', LOG_LEVEL, LOG_FORMAT).logger

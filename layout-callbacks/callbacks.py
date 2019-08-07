@@ -3,6 +3,10 @@ import dash
 from redis_handler import RWrapper, Storage
 import pandas as pd
 
+from logger import Logger
+logger = Logger('callbacks')
+
+
 # # # # # # # # Функции для callback'ов # # # # # # # #
 UUID = 'test'
 RW = RWrapper(UUID)

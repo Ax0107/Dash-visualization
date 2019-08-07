@@ -12,9 +12,8 @@ from bs4 import BeautifulSoup
 
 from config.const import REDISHOST, REDISPORT, REDISMAXPULL, TIMEZONE,APPID
 
-LOG_LEVEL = logging.DEBUG
-logger = logging.getLogger('redis hook')
-logger.setLevel(LOG_LEVEL)
+from logger import Logger
+logger = Logger('redis_handler').logger
 
 r = redis.Redis(
     host=REDISHOST,
