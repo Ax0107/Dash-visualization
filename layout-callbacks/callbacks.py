@@ -239,7 +239,7 @@ def to_settings_type(selected_figure, selected_traces, selected_stream, trace_ty
 
         # Преобразование формата получаемого color_picker в rgb-string
         try:
-            line_color = 'rgb({},{},{},{})'.format(line_color['rgb']['r'], line_color['rgb']['g'],
+            line_color = 'rgba({},{},{},{})'.format(line_color['rgb']['r'], line_color['rgb']['g'],
                                                    line_color['rgb']['b'], line_color['rgb']['a'])
         except KeyError:
             # Если данные уже приведены к нужному типу
@@ -248,7 +248,7 @@ def to_settings_type(selected_figure, selected_traces, selected_stream, trace_ty
         if trace_type == 'scattergl':
             # Преобразование формата получаемого color_picker в rgb-string
             try:
-                marker_color = 'rgb({},{},{},{})'.format(marker_color['rgb']['r'], marker_color['rgb']['g'],
+                marker_color = 'rgba({},{},{},{})'.format(marker_color['rgb']['r'], marker_color['rgb']['g'],
                                                          marker_color['rgb']['b'], marker_color['rgb']['a'])
             except KeyError:
                 # Если данные уже приведены к нужному типу
