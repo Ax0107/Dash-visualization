@@ -16,8 +16,8 @@ logger.setLevel(LOG_LEVEL)
 
 class Server(object):
     def __init__(self):
-        self.ip, self.port = '0.0.0.0', TCPPORT
-        self.w_ip, self.w_port = '0.0.0.0', WEBSOCKETPORT
+        self.ip, self.port = 'localhost', TCPPORT
+        self.w_ip, self.w_port = 'localhost', WEBSOCKETPORT
         self.push = RWrapper().push_xml
 
     async def listen(self):

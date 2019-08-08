@@ -39,7 +39,7 @@ NUM_MSGS = 10000000
 
 async def tcp_echo_client(loop):
     try:
-        reader, writer = await asyncio.open_connection('192.168.1.2', 5678,
+        reader, writer = await asyncio.open_connection('localhost', 5678,
                                                        loop=loop)
         pn = 0
         import time

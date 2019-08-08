@@ -78,7 +78,7 @@ def parse_params(uuid, figure, params):
                     existing_traces = figure_children.get('traces', [])
                     for i in figure_children.keys():
                         # Если i - dict, то это trace. Иначе это просто переменная figure
-                        if i not in existing_traces and isinstance(i, dict):
+                        if 'trace' in i:
                             RWrapper(uuid).dash.child(figure).child(i).rem()
                 except AttributeError:
                     # значит, таких ключей нет

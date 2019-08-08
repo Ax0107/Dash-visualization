@@ -12,7 +12,7 @@ UUID = 'test'
 RW = RWrapper(UUID)
 
 
-def update_figures(n, d, figure_type, selected_figure):
+def update_figures(n, d, selected_figure):
     """
     Добавляет/удаляет/загружает графики в/из Redis
     :param n: обработчик кнопки "добавить" (n_clicks)
@@ -38,16 +38,14 @@ def update_figures(n, d, figure_type, selected_figure):
     if dash.callback_context.triggered[0]['prop_id'] == 'delete-graph.n_clicks':
         if selected_figure not in [[], None]:
             RW.dash.child(selected_figure).rem()
+            # Удаление selected_figure из figures
+            figures = [i for i in figures if i['value'] != selected_figure]
         value = None
-    # Если изменяем тип графика (value остаётся в selected_figure)
-    elif dash.callback_context.triggered[0]['prop_id'] == 'global-figure-type-selector.value' and \
-            figure_type is not None and selected_figure is not None:
-        RW.dash.child(selected_figure).type.set(figure_type)
     # Если мы создаём график (value = new figure id)
     elif dash.callback_context.triggered[0]['prop_id'] == 'create-graph.n_clicks':
         # Создаём новую фигуру в Redis
         figure = 'figure{}'.format(counter_figures + 1)
-        RW.dash.set({figure: {'name': figure, 'graph_type': figure_type}})
+        RW.dash.set({figure: {'name': figure, 'graph_type': 'scattergl'}})
         figures.append({'label': figure, 'value': figure})
         value = figure
 
@@ -69,25 +67,24 @@ def update_stream_traces(value):
     return figures
 
 
-def update_stream(n):
+def update_stream():
     """
-    Загрузка/обновление потоков из Redis
-    :param n: обработчик нажатия кнопки
+    Загрузка потоков из Redis
     :return: options for dropdown
     """
     streams = []
-    # TODO: поиск по приставке
-    for i in RW.search("*:Rlist"):
+    for i in RW.search("S_0:*:Rlist"):
         i = i.decode("utf-8")
         streams.append({'label': i.split(':')[1], 'value': i})
     return streams
 
 
-def update_traces(figure, stream, traces):
+def update_traces(traces, graph_type, stream, figure):
     """
     Обновление traces (в настройках линий) при выборе visible-traces из потока
     :param figure: выбранный график
     :param stream: выбранный поток
+    :param graph_type: тип графика
     :param traces: выбранные visible-traces
     :return: options for dropdown
     """
@@ -98,8 +95,7 @@ def update_traces(figure, stream, traces):
 
         # Удаление всех прошлых ключей traces
         for i in figure_children.keys():
-            # Если i - dict, то это trace. Иначе это просто переменная figure
-            if i not in existing_traces and isinstance(i, dict):
+            if 'trace' in i:
                 RW.dash.child(figure).child(i).rem()
 
         for i in range(0, len(traces)):
@@ -110,10 +106,10 @@ def update_traces(figure, stream, traces):
                     'name_id': traces[i]}
                 }
             )
-            RW.dash.child(figure).set({'traces': traces, 'stream': stream})
+            RW.dash.child(figure).set({'traces': traces, 'graph_type': graph_type, 'stream': stream})
         # Обновляем значение переменной figure_children с новыми traces
         figure_children = RW.dash.child(figure).val()
-        print(figure_children)
+        # print(figure_children)
         return [{'label': '{} ({})'.format(figure_children[i]['name'], i), 'value': i}
                 for i in figure_children.keys() if 'trace' in i and i != 'traces']
     return []
@@ -136,7 +132,7 @@ def get_dict_from_str(color):
 
 
 DEFAULT_COLOR = {'r': 255, 'g': 100, 'b': 100, 'a': 1}
-DEFAULT_COLOR_STR = 'rgba(255,100,100,1)'
+
 
 def update_settings(selected_traces, trace_name, lines_type_options, lines_type_value, selected_figure):
     """
@@ -152,6 +148,7 @@ def update_settings(selected_traces, trace_name, lines_type_options, lines_type_
     """
     if selected_figure != [] and selected_figure is not None and selected_traces != [] and selected_traces is not None:
         trace_settings = RW.dash.child(selected_figure).child(selected_traces).val()
+        logger.debug('fig_set', RW.dash.child(selected_figure).val())
         try:
             figure_settings = RW.dash.child(selected_figure).val()
         except AttributeError:
@@ -191,12 +188,13 @@ def update_settings(selected_traces, trace_name, lines_type_options, lines_type_
         {'display': 'none'}, {'display': 'none'}, lines_type_options
 
 
-def save_settings_to_redis(n, selected_figure, selected_traces, selected_stream, trace_name, line_color, marker_color, line_width,
+def save_settings_to_redis(n, selected_figure, graph_type, selected_traces, selected_stream, trace_name, line_color, marker_color, line_width,
                            marker_size, lines_type):
     """
     Сохранение настроек в Redis
     :param n: обработчик кнопки "добавить" (n_clicks)
     :param selected_figure: выбранный графки
+    :param graph_type: тип графика
     :param selected_traces: выбранная линия
     :param selected_stream: выбранный поток
     :param trace_name: новое имя (name) линии
@@ -212,7 +210,7 @@ def save_settings_to_redis(n, selected_figure, selected_traces, selected_stream,
 
         # Создаём словарь нужного формата
         trace_type = RW.dash.child(selected_figure).child(selected_traces).val().get('graph_type', 'scattergl')
-        settings = to_settings_type(selected_figure, selected_traces, selected_stream, trace_type, trace_name,
+        settings = to_settings_type(selected_figure, graph_type, selected_traces, selected_stream, trace_type, trace_name,
                                     line_color, marker_color, line_width, marker_size, lines_type)
         try:
             # Создаём ключ для того, чтобы отловить сохранение настроек и перезагрузить графики
@@ -224,11 +222,12 @@ def save_settings_to_redis(n, selected_figure, selected_traces, selected_stream,
     return [False, 'success', '']
 
 
-def to_settings_type(selected_figure, selected_traces, selected_stream, trace_type,
+def to_settings_type(selected_figure, graph_type, selected_traces, selected_stream, trace_type,
                      new_trace_name, line_color, marker_color, line_width, marker_size, lines_type):
     """
     Преобразует данные к правильному типу (напр.: данные с color-picker в виде dict -> str)
     :param selected_figure: выбранный графки
+    :param graph_type: тип графика
     :param selected_traces: выбранная линия
     :param selected_stream: выбранный поток
     :param trace_type: тип линии линии
@@ -252,7 +251,7 @@ def to_settings_type(selected_figure, selected_traces, selected_stream, trace_ty
             # Если данные уже приведены к нужному типу
             pass
 
-        if trace_type == 'scattergl':
+        if trace_type.lower() in ['scattergl', 'trajectory']:
             # Преобразование формата получаемого color_picker в rgb-string
             try:
                 marker_color = 'rgba({},{},{},{})'.format(marker_color['rgb']['r'], marker_color['rgb']['g'],
@@ -261,16 +260,16 @@ def to_settings_type(selected_figure, selected_traces, selected_stream, trace_ty
                 # Если данные уже приведены к нужному типу
                 pass
 
-
             setting = {selected_figure: {selected_traces: {
                                                 'line': {'color': line_color, 'width':  line_width},
                                                 'marker': {'color': marker_color, 'size': marker_size},
                                          'name': new_trace_name, 'name_id': trace_name, 'mode': lines_type},
-                                         'stream': selected_stream}}
+                                         'stream': selected_stream, 'graph_type': graph_type}}
         else:
             setting = {selected_figure: {selected_traces: {
-                'marker': {'color': line_color, 'size': line_width},
-                'name': new_trace_name, 'name_id': trace_name, 'mode': lines_type}, 'stream': selected_stream}}
+                    'marker': {'color': line_color, 'size': line_width},
+                    'name': new_trace_name, 'name_id': trace_name, 'mode': lines_type},
+                'stream': selected_stream, 'graph_type': graph_type}}
     return setting
 
 
@@ -323,10 +322,13 @@ def load_settings_for_figure_block(figure):
     """
     if figure is not None and figure != []:
         figure_settings = RW.dash.child(figure).val()
-        stream = figure_settings.get('stream')
-        traces = figure_settings.get('traces')
-        return {}, stream, traces
-    return {'display': 'none'}, None, None
+        logger.debug('Loaded figure settings:'+str(figure_settings))
+        stream_options = update_stream()
+        stream_value = figure_settings.get('stream')
+        traces = figure_settings.get('traces', [])
+        graph_type = figure_settings.get('graph_type', 'scattergl').lower()
+        return {}, graph_type, stream_options, stream_value, traces
+    return {'display': 'none'}, 'scattergl', update_stream(), None, None
 
 # # # # # # # # Классы Callback # # # # # # # #
 
@@ -350,28 +352,26 @@ class CallbackObj(object):
 class SettingsPanel(CallbackObj):
     def __init__(self):
         super().__init__()
-
-        # Загрузка данных о потоках
-        self.val.append(
-            ((Output('global-stream-selector', 'options'),
-              [Input('btn-open-global-style', 'n_clicks')]), update_stream))
+        # TODO: обновлять options для figures, streams, visible_traces через Interval ???
 
         # Юзер: *создаёт график*
 
-        # Создание и обновление всех графиков в Redis
+        # Создание и удаление всех графиков в Redis
         self.val.append(
             (([Output('global-figures-selector', 'options'),
               Output('global-figures-selector', 'value')],
               [Input('create-graph', 'n_clicks'),
-               Input('delete-graph', 'n_clicks'),
-               Input('global-figure-type-selector', 'value')],
+               Input('delete-graph', 'n_clicks')],
               [State('global-figures-selector', 'value')]), update_figures))
 
         # Юзер: *выбирает график*
 
         # Показ следующего блока настроек, если выбран график
+        # Загрузка figure_type, stream, visible_traces из Redis
         self.val.append(
             (([Output('children-figures', 'style'),
+               Output('global-figure-type-selector', 'value'),
+               Output('global-stream-selector', 'options'),
                Output('global-stream-selector', 'value'),
                Output('global-visible-traces-selector', 'value')],
               [Input('global-figures-selector', 'value')]), load_settings_for_figure_block))
@@ -383,13 +383,15 @@ class SettingsPanel(CallbackObj):
             ((Output('global-visible-traces-selector', 'options'),
               [Input('global-stream-selector', 'value')]), update_stream_traces))
 
-        # Обновление данных traces для графика в Redis
+        # Сохранение stream, graph_type, visible_traces в Redis
         self.val.append(
             ((Output('global-traces-selector', 'options'),
-             [Input('global-figures-selector', 'value'),
-              Input('global-stream-selector', 'value'),
-              Input('global-visible-traces-selector', 'value')]), update_traces))
+             [Input('global-visible-traces-selector', 'value'),
+              Input('global-figure-type-selector', 'value'),
+              Input('global-stream-selector', 'value')],
+             [State('global-figures-selector', 'value')]), update_traces))
 
+        # При выборе конкретной линии в edit-block
         # Загрузка данных color-picker, input (etc.) исходя из данных в Redis
         self.val.append(
             (([
@@ -414,8 +416,8 @@ class SettingsPanel(CallbackObj):
 
         self.val.append(
             ((Output('global-edit-block', 'style'),
-              [Input('global-visible-traces-selector', 'value'),
-               Input('global-stream-selector', 'value')]), show_edit_block))
+              [Input('global-visible-traces-selector', 'value')],
+              [State('global-stream-selector', 'value')]), show_edit_block))
 
         # При нажатии кнопки "открыть" показывается line-settings
         self.val.append(
@@ -423,13 +425,14 @@ class SettingsPanel(CallbackObj):
               [Input('btn-open-global-style', 'n_clicks')]),
              show_settings_block))
 
-        # Сохранение данных о traces в Redis
+        # Сохранение данных о конкретной линии trace + stream, graph_type, visible_traces в Redis
         self.val.append(
             (([Output('alert', 'is_open'),
                Output('alert', 'color'),
                Output('alert', 'children')],
               [Input('btn-save-global-style', 'n_clicks')],
               [State('global-figures-selector', 'value'),
+               State('global-figure-type-selector', 'value'),
                State('global-traces-selector', 'value'),
                State('global-stream-selector', 'value'),
                State('global-input-trace-name', 'value'),

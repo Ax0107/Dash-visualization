@@ -278,7 +278,7 @@ class RWrapper(object):
         return self.r.keys(search_string)
 
     def delete(self, keys):
-        print(keys)
+        # print(keys)
         for key in keys:
             self.r.delete(key)
 
