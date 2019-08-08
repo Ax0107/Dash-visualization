@@ -13,19 +13,54 @@ logger = logger('api')
 server = Flask(__name__)
 
 
-@server.route('/dash/api')
-def parse_params():
+@server.route('/dash/api/delete')
+def figure_deletion():
     if request.args:
-        figure_id = request.args.get('figure_id', None)
-        uuid = request.args.get('uuid', 'default')
-        figure = RWrapper(uuid).dash.child("figure{}".format(figure_id))
-        if figure:
-            parse_params(uuid, figure, dict(request.args))
-        else:
+        uuid = request.args.get('uuid', 'default').lower()
+        figure_id = request.args.get('figure_id')
+        if figure_id is not None:
             figures = RWrapper(uuid).dash.get_children('figure')
-            fig_count = list(map(lambda i: int(re.search(r'\d+$', i).group()) if re.search(r'\d+$', i) else 0, figures.pop().__name__))
-            i = next(filterfalse(set(fig_count).__contains__, count(1)))
-            parse_params(RWrapper(uuid).dash.child('figure' + str(i)), request.args)
+            names = [i.__name__ for i in figures]
+            if 'dash.figure{}'.format(figure_id) in names:
+                logger.info('Figure with id {} exist. Deleting.'.format(figure_id))
+                RWrapper(uuid).dash.child("figure{}".format(figure_id)).rem()
+                logger.info('Dash.figure{} was deleted.'.format(figure_id))
+            else:
+                logger.info("{}'s figure with id {} does not exist.".format(uuid, figure_id))
+        return redirect("/loading/")
+    else:
+        if RWrapper(APPID).loaded():
+            return redirect("/graph/")
+        else:
+            return redirect("/loading/")
+
+@server.route('/dash/api')
+def figure_work():
+    if request.args:
+        logger.debug('Params: ' + str(dict(request.args)))
+        uuid = request.args.get('uuid', 'default').lower()
+        figure_id = request.args.get('figure_id')
+        if figure_id is not None:
+            parse_params(uuid, figure_id, dict(request.args))
+        else:
+            logger.info('Figure id is not selected. Giving id.')
+            figures = RWrapper(uuid).dash.get_children('figure')
+            if len(figures):
+                # Список из figure, чьё имя заканчивается на цифру?
+                fig_count = list(map(lambda i: int(re.search(r'\d+$', i).group()) if re.search(r'\d+$', i) else 0,
+                                     figures.pop().__name__))
+                # ?
+                i = next(filterfalse(set(fig_count).__contains__, count(1)))
+
+                names = [i.__name__ for i in figures]
+                logger.info('Figure id {} is already exist. Giving another id.'.format(i))
+                while 'dash.figure{}'.format(i) in names:
+                    i += 1
+            else:
+                i = 1
+            logger.info('New figure id is {}'.format(i))
+            # if RWrapper(uuid).dash.get_children('figure')
+            parse_params(uuid, str(i), dict(request.args))
 
         return redirect("/loading/")
     else:
@@ -35,11 +70,16 @@ def parse_params():
             return redirect("/loading/")
 
 
-def parse_params(uuid, figure, params):
-    def validate(figure, params):
-        logger.debug('Params: '+str(dict(params)))
-        if not figure:
-            logger.error('Figure does not exist.')
+def parse_params(uuid, figure_id, params):
+    def validate(figure_id, params):
+        if figure_id:
+            try:
+                int(figure_id)
+            except ValueError:
+                logger.error('Figure_id is not integer.')
+                return 0
+        else:
+            logger.error('Does not have figure_id in validate function.')
             return 0
         graph_type = params.get('graph_type')
         stream = params.get('stream')
@@ -69,18 +109,18 @@ def parse_params(uuid, figure, params):
                     logger.error('Stream {} does not have name {}.'.format(stream, traces))
                     return 0
         return params
-    if validate(figure, params):
+    if validate(figure_id, params):
+        figure = RWrapper(uuid).dash.child("figure{}".format(figure_id))
+
         logger.info('Params are valid. Setting up: graph_type, stream, traces for figure {}'.format(figure))
         valid_params = [params.pop('graph_type')] + [params.pop('stream')] + \
-                       [params.pop('traces')] + [params.pop('figure_id')]
-        valid_params = {'graph_type': valid_params[0], 'stream': valid_params[1], 'traces': valid_params[2],
-                        'figure_id': valid_params[3]}
+                       [params.pop('traces')]
+        valid_params = {'graph_type': valid_params[0], 'stream': valid_params[1], 'traces': valid_params[2]}
         for param in valid_params:
             # print("{} ({}): {} ({})".format(param, type(param), valid_params[param], type(valid_params[param])))
             if param == 'traces':
                 # Удаление всех прошлых ключей trace
                 try:
-                    # figure_children = RWrapper(uuid).dash.child("figure{}".format(valid_params['figure_id'])).val()
                     figure_children = figure.val()
                     for i in figure_children.keys():
                         if 'trace' in i:
