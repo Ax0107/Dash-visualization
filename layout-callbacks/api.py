@@ -13,7 +13,7 @@ logger = logger('api')
 server = Flask(__name__)
 
 
-@server.route('/dash/api/add')
+@server.route('/dash/api')
 def parse_params():
     if request.args:
         figure_id = request.args.get('figure_id', None)
@@ -36,15 +36,17 @@ def parse_params():
 
 
 def parse_params(uuid, figure, params):
-    def validate(params):
+    def validate(figure, params):
         logger.debug('Params: '+str(dict(params)))
-        figure_id = params.get('figure_id')
+        if not figure:
+            logger.error('Figure does not exist.')
+            return 0
         graph_type = params.get('graph_type')
         stream = params.get('stream')
         traces = params.get('traces')
         # print(graph_type is None, stream is None, traces is None)
-        if figure_id is None or graph_type is None or stream is None or traces is None:
-            logger.error('Some var is None!')
+        if graph_type is None or stream is None or traces is None:
+            logger.error('Some variable is None!')
             return 0
         if graph_type.lower() not in ['trajectory', 'bar', 'scatter']:
             logger.error('Graph type {} does not exist.'.format(graph_type))
@@ -67,28 +69,33 @@ def parse_params(uuid, figure, params):
                     logger.error('Stream {} does not have name {}.'.format(stream, traces))
                     return 0
         return params
-    if validate(params):
-        logger.info('Params are valid.')
-        for param in params:
-            # print("{} ({}): {} ({})".format(param, type(param), params[param], type(params[param])))
+    if validate(figure, params):
+        logger.info('Params are valid. Setting up: graph_type, stream, traces for figure {}'.format(figure))
+        valid_params = [params.pop('graph_type')] + [params.pop('stream')] + \
+                       [params.pop('traces')] + [params.pop('figure_id')]
+        valid_params = {'graph_type': valid_params[0], 'stream': valid_params[1], 'traces': valid_params[2],
+                        'figure_id': valid_params[3]}
+        for param in valid_params:
+            # print("{} ({}): {} ({})".format(param, type(param), valid_params[param], type(valid_params[param])))
             if param == 'traces':
                 # Удаление всех прошлых ключей trace
                 try:
-                    figure_children = RWrapper(uuid).dash.child("figure{}".format(params['figure_id'])).val()
-                    existing_traces = figure_children.get('traces', [])
+                    # figure_children = RWrapper(uuid).dash.child("figure{}".format(valid_params['figure_id'])).val()
+                    figure_children = figure.val()
                     for i in figure_children.keys():
-                        # Если i - dict, то это trace. Иначе это просто переменная figure
                         if 'trace' in i:
-                            RWrapper(uuid).dash.child(figure).child(i).rem()
+                            figure.child(i).rem()
                 except AttributeError:
                     # значит, таких ключей нет
                     pass
-                for i in range(0, len(params[param])):
-                    RWrapper(uuid).dash.figure.child('trace{}'.format(i)).name.set(params[param][i])
+                for i in range(0, len(valid_params[param])):
+                    figure.child('trace{}'.format(i)).name.set(valid_params[param][i])
             if param == 'stream':
-                params['stream'] = 'S_0:' + params['stream'] + ':Rlist'
-            RWrapper(uuid).dash.child("figure{}".format(params['figure_id'])).child(param).set(params[param])
-
+                valid_params['stream'] = 'S_0:' + valid_params['stream'] + ':Rlist'
+            figure.child(param).set(valid_params[param])
+        logger.info('OK.')
+        if params != {}:
+            logger.warning('There are untracked variables: '+str(params))
         # RWrapper(APPID).dash.reload.set('True')
         # RWrapper(APPID).loading()
 
