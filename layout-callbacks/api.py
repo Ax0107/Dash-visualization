@@ -2,7 +2,6 @@ from config.const import APPID
 from flask import Flask, request, redirect
 import re
 import pandas as pd
-from ast import literal_eval
 from itertools import count, filterfalse
 
 from redis_handler import RWrapper, Storage
@@ -34,6 +33,7 @@ def figure_deletion():
         else:
             return redirect("/loading/")
 
+
 @server.route('/dash/api')
 def figure_work():
     if request.args:
@@ -64,10 +64,10 @@ def figure_work():
 
         return redirect("/loading/")
     else:
-        if RWrapper(APPID).loaded():
-            return redirect("/graph/")
-        else:
-            return redirect("/loading/")
+        # if RWrapper(APPID).loaded():
+        #    return redirect("/graph/")
+        #else:
+        return redirect("/loading/")
 
 
 def parse_params(uuid, figure_id, params):
@@ -138,6 +138,7 @@ def parse_params(uuid, figure_id, params):
             logger.warning('There are untracked variables: '+str(params))
         # RWrapper(APPID).dash.reload.set('True')
         # RWrapper(APPID).loading()
+
 
 if __name__ == '__main__':
     server.run()
