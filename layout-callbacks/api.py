@@ -1,16 +1,23 @@
 from config.const import APPID
-from flask import Flask, request, redirect
+from flask import Flask, request, redirect, make_response
 import re
 import pandas as pd
-from ast import literal_eval
 from itertools import count, filterfalse
-
+import json
 from redis_handler import RWrapper, Storage
 
 from logger import logger
 logger = logger('api')
 
 server = Flask(__name__)
+
+
+def to_json(data):
+    return json.dumps(data)
+
+
+def resp(code, data):
+    return make_response(to_json(data), code)
 
 
 @server.route('/dash/api/delete')
@@ -24,15 +31,19 @@ def figure_deletion():
             if 'dash.figure{}'.format(figure_id) in names:
                 logger.info('Figure with id {} exist. Deleting.'.format(figure_id))
                 RWrapper(uuid).dash.child("figure{}".format(figure_id)).rem()
-                logger.info('Dash.figure{} was deleted.'.format(figure_id))
+                mess = 'Dash.figure{} was deleted.'.format(figure_id)
+                logger.info(mess)
             else:
-                logger.info("{}'s figure with id {} does not exist.".format(uuid, figure_id))
+                mess = "{}'s figure with id {} does not exist.".format(uuid, figure_id)
+                logger.info(mess)
+                return resp(400, mess)
         return redirect("/loading/")
     else:
         if RWrapper(APPID).loaded():
             return redirect("/graph/")
         else:
             return redirect("/loading/")
+
 
 @server.route('/dash/api')
 def figure_work():
@@ -41,7 +52,7 @@ def figure_work():
         uuid = request.args.get('uuid', 'default').lower()
         figure_id = request.args.get('figure_id')
         if figure_id is not None:
-            parse_params(uuid, figure_id, dict(request.args))
+            return parse_params(uuid, figure_id, dict(request.args))
         else:
             logger.info('Figure id is not selected. Giving id.')
             figures = RWrapper(uuid).dash.get_children('figure')
@@ -60,9 +71,7 @@ def figure_work():
                 i = 1
             logger.info('New figure id is {}'.format(i))
             # if RWrapper(uuid).dash.get_children('figure')
-            parse_params(uuid, str(i), dict(request.args))
-
-        return redirect("/loading/")
+            return parse_params(uuid, str(i), dict(request.args))
     else:
         if RWrapper(APPID).loaded():
             return redirect("/graph/")
@@ -76,24 +85,29 @@ def parse_params(uuid, figure_id, params):
             try:
                 int(figure_id)
             except ValueError:
-                logger.error('Figure_id is not integer.')
-                return 0
+                mess = 'Figure_id is not integer.'
+                logger.error(mess)
+                return 415, mess
         else:
-            logger.error('Does not have figure_id in validate function.')
-            return 0
+            mess = 'Does not have figure_id.'
+            logger.error(mess)
+            return 400, mess
         graph_type = params.get('graph_type')
         stream = params.get('stream')
         traces = params.get('traces')
         # print(graph_type is None, stream is None, traces is None)
         if graph_type is None or stream is None or traces is None:
-            logger.error('Some variable is None!')
-            return 0
+            mess = 'Some variable is None!'
+            logger.error(mess)
+            return 400, mess
         if graph_type.lower() not in ['trajectory', 'bar', 'scatter']:
-            logger.error('Graph type {} does not exist.'.format(graph_type))
-            return 0
+            mess = 'Graph type {} does not exist.'.format(graph_type)
+            logger.error(mess)
+            return 400, mess
         if RWrapper(uuid).search('S_0:'+stream+':Rlist') == []:
-            logger.error('Stream {} does not exist.'.format(stream))
-            return 0
+            mess = 'Stream {} does not exist.'.format(stream)
+            logger.error(mess)
+            return 400, mess
         else:
             frame, end = Storage(id='S_0:'+stream+':Rlist', preload=True).call(start=0, end=1)
             columns = list(pd.DataFrame(frame).columns)
@@ -102,14 +116,18 @@ def parse_params(uuid, figure_id, params):
             if isinstance(traces, list):
                 for trace in traces:
                     if trace not in columns:
-                        logger.error('Stream {} does not have name {}.'.format(stream, trace))
-                        return 0
+                        mess = 'Stream {} does not have name {}.'.format(stream, trace)
+                        logger.error(mess)
+                        return 400, mess
             else:
                 if traces not in columns:
-                    logger.error('Stream {} does not have name {}.'.format(stream, traces))
-                    return 0
-        return params
-    if validate(figure_id, params):
+                    mess = 'Stream {} does not have name {}.'.format(stream, trace)
+                    logger.error(mess)
+                    return 400, mess
+        return 200, 'OK'
+
+    code, message = validate(figure_id, params)
+    if code == 200:
         figure = RWrapper(uuid).dash.child("figure{}".format(figure_id))
 
         logger.info('Params are valid. Setting up: graph_type, stream, traces for figure {}'.format(figure))
@@ -138,6 +156,10 @@ def parse_params(uuid, figure_id, params):
             logger.warning('There are untracked variables: '+str(params))
         # RWrapper(APPID).dash.reload.set('True')
         # RWrapper(APPID).loading()
+        return redirect("/loading/")
+    else:
+        return resp(code, message)
+
 
 if __name__ == '__main__':
     server.run()
