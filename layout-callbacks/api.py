@@ -131,6 +131,10 @@ def parse_params(uuid, figure_id, params):
         figure = RWrapper(uuid).dash.child("figure{}".format(figure_id))
 
         logger.info('Params are valid. Setting up: graph_type, stream, traces for figure {}'.format(figure))
+        try:
+            params.pop('figure_id')
+        except KeyError:
+            pass
         valid_params = [params.pop('graph_type')] + [params.pop('stream')] + \
                        [params.pop('traces')]
         valid_params = {'graph_type': valid_params[0], 'stream': valid_params[1], 'traces': valid_params[2]}
