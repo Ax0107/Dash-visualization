@@ -95,8 +95,10 @@ def update_traces(traces, graph_type, stream, figure):
 
         # Удаление всех прошлых ключей traces
         for i in figure_children.keys():
-            if 'trace' in i:
-                RW.dash.child(figure).child(i).rem()
+            if 'trace' in i and i != 'traces':
+                print(i, figure_children[i])
+                if figure_children[i]['name_id'] not in existing_traces:
+                    RW.dash.child(figure).child(i).rem()
 
         for i in range(0, len(traces)):
             # Сохранение всех выбранных trace
