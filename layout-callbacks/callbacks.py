@@ -96,7 +96,6 @@ def update_traces(traces, graph_type, stream, figure):
         # Удаление всех прошлых ключей traces
         for i in figure_children.keys():
             if 'trace' in i and i != 'traces':
-                print(i, figure_children[i])
                 if figure_children[i]['name_id'] not in existing_traces:
                     RW.dash.child(figure).child(i).rem()
 
@@ -150,7 +149,7 @@ def update_settings(selected_traces, trace_name, lines_type_options, lines_type_
     """
     if selected_figure != [] and selected_figure is not None and selected_traces != [] and selected_traces is not None:
         trace_settings = RW.dash.child(selected_figure).child(selected_traces).val()
-        logger.debug('fig_set', RW.dash.child(selected_figure).val())
+        logger.debug('Figure {} was load'.format(selected_figure))
         try:
             figure_settings = RW.dash.child(selected_figure).val()
         except AttributeError:

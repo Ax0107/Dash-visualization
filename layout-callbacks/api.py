@@ -137,6 +137,12 @@ def parse_params(uuid, figure_id, params, method=None):
                 mess = 'Trace is not integer.'
                 logger.error(mess)
                 return 415, mess, params
+            try:
+                figure.child('trace{}'.format(trace)).val()
+            except AttributeError:
+                mess = 'Trace with id {} does not exist. Make sure, you select a trace, when creating a figure.'
+                logger.error(mess)
+                return 400, mess, params
         if graph_type.lower() not in ['trajectory', 'bar', 'scatter']:
             mess = 'Graph type {} does not exist.'.format(graph_type)
             logger.error(mess)
@@ -250,10 +256,10 @@ def parse_params(uuid, figure_id, params, method=None):
                         pass
                     for i in range(0, len(valid_params[param])):
                         figure.child('trace{}'.format(i)).name.set(valid_params[param][i])
-                    continue
+                        figure.child('trace{}'.format(i)).name_id.set(valid_params[param][i])
                 if param == 'stream':
                     valid_params['stream'] = 'S_0:' + valid_params['stream'] + ':Rlist'
-                # figure.child(param).set(valid_params[param])
+                figure.child(param).set(valid_params[param])
         elif method == 'optional':
             logger.info('Params are valid. Setting up: lines and markers for figure {}'.format(figure))
             trace = params.pop('trace_id')
