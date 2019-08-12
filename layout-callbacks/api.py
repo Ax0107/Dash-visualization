@@ -5,7 +5,6 @@ import pandas as pd
 from itertools import count, filterfalse
 import json
 from redis_handler import RWrapper, Storage
-
 from logger import logger
 logger = logger('api')
 
@@ -100,11 +99,18 @@ def parse_params(uuid, figure_id, params, method=None):
             except ValueError:
                 mess = 'Figure_id is not integer.'
                 logger.error(mess)
-                return 415, mess
+                return 415, mess, params
+            try:
+                figure = RWrapper(uuid).dash.child('figure{}'.format(figure_id))
+                figure.val()
+            except AttributeError:
+                mess = 'Does not have figure with id {} for user {}.'.format(figure_id, uuid)
+                logger.error(mess)
+                return 400, mess, params
         else:
             mess = 'Does not have figure_id.'
             logger.error(mess)
-            return 400, mess
+            return 400, mess, params
         graph_type = params.get('graph_type')
         trace = params.get('trace_id')
         line_color = params.get('line_color')
@@ -112,36 +118,66 @@ def parse_params(uuid, figure_id, params, method=None):
         marker_color = params.get('marker_color')
         marker_size = params.get('marker_size')
         if graph_type is None:
-            # TODO: get graph_type from redis
-            mess = 'Graph type must be string, not None'
-            logger.error(mess)
-            return 400, mess
+            try:
+                graph_type = figure.graph_type.val()
+            except AttributeError:
+                mess = 'Graph type must be string, not None'
+                logger.error(mess)
+                return 400, mess, params
+        params['graph_type'] = graph_type
+        logger.debug('Loaded graph_type from Redis - {}'.format(graph_type))
         if trace is None:
             mess = 'Trace_id must be number, not None'
             logger.error(mess)
-            return 400, mess
+            return 400, mess, params
         else:
             try:
                 int(trace)
             except ValueError:
                 mess = 'Trace is not integer.'
                 logger.error(mess)
-                return 415, mess
+                return 415, mess, params
         if graph_type.lower() not in ['trajectory', 'bar', 'scatter']:
             mess = 'Graph type {} does not exist.'.format(graph_type)
             logger.error(mess)
-            return 400, mess
+            return 400, mess, params
         if graph_type.lower() == 'bar':
             if marker_color is None or marker_size is None:
                 mess = 'Graph type bar needed marker color and marker size params.'
                 logger.error(mess)
-                return 400, mess
+                return 400, mess, params
         else:
             if line_color is None or line_width is None or marker_color is None or marker_size is None:
-                mess = 'Graph type {} needed more params.'.format(graph_type)
+                mess = 'Graph type {} needed more params. ' \
+                       '(line_color, line_width, marker_color, marker_size)'.format(graph_type)
                 logger.error(mess)
-                return 400, mess
-        return 200, 'OK'
+                return 400, mess, params
+
+            # Проверка формата цвета
+            def check_format(color):
+                """
+                Проверяет формат rgb-string
+                :param color: rgb-string
+                :return: true/false
+                """
+                if isinstance(color, str):
+                    # print('C:', color, color[5:-1])
+                    color_splited = color[5:-1].split(',')
+                    try:
+                        {'r': int(color_splited[0]), 'g': int(color_splited[1]), 'b': int(color_splited[2]),
+                         'a': int(color_splited[3])}
+                    except IndexError:
+                        return 0
+                    except ValueError:
+                        return 0
+                return 1
+            for color in [line_color, marker_color]:
+                if color is not None:
+                    if not check_format(color):
+                        mess = 'Color {} is not in valid format. Correct format: rbga(1,1,1,1)'.format(color)
+                        logger.error(mess)
+                        return 400, mess, params
+        return 200, 'OK', params
 
     def validate_work(figure_id, params):
         if figure_id:
@@ -184,14 +220,14 @@ def parse_params(uuid, figure_id, params, method=None):
                         return 400, mess
             else:
                 if traces not in columns:
-                    mess = 'Stream {} does not have name {}.'.format(stream, trace)
+                    mess = 'Stream {} does not have name {}.'.format(stream, traces)
                     logger.error(mess)
                     return 400, mess
         return 200, 'OK'
     if method is None or method == 'work':
         code, message = validate_work(figure_id, params)
     elif method == 'optional':
-        code, message = validate_optional(figure_id, params)
+        code, message, params = validate_optional(figure_id, params)
     else:
         logger.warning('Method {} do not exist.'.format(method))
         return resp(500, 'Method {} do not exist.'.format(method))
@@ -221,15 +257,15 @@ def parse_params(uuid, figure_id, params, method=None):
         elif method == 'optional':
             logger.info('Params are valid. Setting up: lines and markers for figure {}'.format(figure))
             trace = params.pop('trace_id')
-            valid_params = {'marker_color': params.pop('marker_color'), 'marker_size': params.pop('marker_size')}
-            if params['graph_type'] != 'bar':
+            valid_params = {'graph_type': params.pop('graph_type'), 'marker_color': params.pop('marker_color'), 'marker_size': params.pop('marker_size')}
+            if valid_params['graph_type'] != 'bar':
                 valid_params.update({'line_color': params.pop('line_color'),
                                      'line_width': params.pop('line_width')})
             for param in valid_params:
                 parent = param.split('_')[0]
                 child = param.split('_')[1]
                 figure.child('trace{}'.format(trace)).child(parent).child(child).set(valid_params[param])
-            figure.graph_id.set(params['graph_type'])
+            figure.graph_id.set(valid_params['graph_type'])
 
         logger.info('OK.')
         if params != {}:
