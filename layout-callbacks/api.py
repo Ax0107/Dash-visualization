@@ -140,7 +140,8 @@ def parse_params(uuid, figure_id, params, method=None):
             try:
                 figure.child('trace{}'.format(trace)).val()
             except AttributeError:
-                mess = 'Trace with id {} does not exist. Make sure, you select a trace, when creating a figure.'
+                mess = 'Trace with id {} does not exist.' \
+                       ' Make sure, you select a trace, when creating a figure.'.format(trace)
                 logger.error(mess)
                 return 400, mess, params
         if graph_type.lower() not in ['trajectory', 'bar', 'scatter']:
@@ -159,30 +160,37 @@ def parse_params(uuid, figure_id, params, method=None):
                 logger.error(mess)
                 return 400, mess, params
 
-            # Проверка формата цвета
-            def check_format(color):
-                """
-                Проверяет формат rgb-string
-                :param color: rgb-string
-                :return: true/false
-                """
-                if isinstance(color, str):
-                    # print('C:', color, color[5:-1])
-                    color_splited = color[5:-1].split(',')
-                    try:
-                        {'r': int(color_splited[0]), 'g': int(color_splited[1]), 'b': int(color_splited[2]),
-                         'a': int(color_splited[3])}
-                    except IndexError:
-                        return 0
-                    except ValueError:
-                        return 0
-                return 1
-            for color in [line_color, marker_color]:
-                if color is not None:
-                    if not check_format(color):
-                        mess = 'Color {} is not in valid format. Correct format: rbga(1,1,1,1)'.format(color)
-                        logger.error(mess)
-                        return 400, mess, params
+        # Проверка формата цвета
+        def check_format(color):
+            """
+            Проверяет формат rgb-string
+            :param color: rgb-string
+            :return: true/false
+            """
+            if isinstance(color, str):
+                if not len(color) >= 13:
+                    return 0
+                if not color[:5] == 'rgba(' and color[-1] == ')':
+                    return 0
+                color_splited = color[5:-1].split(',')
+                try:
+                    {'r': int(color_splited[0]), 'g': int(color_splited[1]), 'b': int(color_splited[2]),
+                          'a': int(color_splited[3])}
+                except Exception:
+                    return 0
+
+            else:
+                return 0
+            return 1
+        l = [marker_color]
+        if graph_type.lower() != 'bar':
+            l = [line_color, marker_color]
+        for color in l:
+            if color is not None:
+                if not check_format(color):
+                    mess = 'Color {} is not in valid format. Correct format: rbga(1,1,1,1)'.format(color)
+                    logger.error(mess)
+                    return 400, mess, params
         return 200, 'OK', params
 
     def validate_work(figure_id, params):
@@ -271,7 +279,7 @@ def parse_params(uuid, figure_id, params, method=None):
                 parent = param.split('_')[0]
                 child = param.split('_')[1]
                 figure.child('trace{}'.format(trace)).child(parent).child(child).set(valid_params[param])
-            figure.graph_id.set(valid_params['graph_type'])
+            figure.set(valid_params['graph_type'])
         logger.info('OK.')
         if params != {}:
             logger.warning('There are untracked variables: '+str(params))
