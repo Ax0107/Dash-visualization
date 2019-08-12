@@ -17,7 +17,7 @@ def update_figures(n, d, selected_figure):
     Добавляет/удаляет/загружает графики в/из Redis
     :param n: обработчик кнопки "добавить" (n_clicks)
     :param d: обработчик кнопки "удалить" (n_clicks)
-    :param figure_type: тип фигуры из dropdown (scattergl/bar)
+    :param figure_type: тип фигуры из dropdown (scatter/bar)
     :param selected_figure: выбранный график
     :return: options for dropdown, value of dropdown
     """
@@ -45,7 +45,7 @@ def update_figures(n, d, selected_figure):
     elif dash.callback_context.triggered[0]['prop_id'] == 'create-graph.n_clicks':
         # Создаём новую фигуру в Redis
         figure = 'figure{}'.format(counter_figures + 1)
-        RW.dash.set({figure: {'name': figure, 'graph_type': 'scattergl'}})
+        RW.dash.set({figure: {'name': figure, 'graph_type': 'scatter'}})
         figures.append({'label': figure, 'value': figure})
         value = figure
 
@@ -95,8 +95,9 @@ def update_traces(traces, graph_type, stream, figure):
 
         # Удаление всех прошлых ключей traces
         for i in figure_children.keys():
-            if 'trace' in i:
-                RW.dash.child(figure).child(i).rem()
+            if 'trace' in i and i != 'traces':
+                if figure_children[i]['name_id'] not in existing_traces:
+                    RW.dash.child(figure).child(i).rem()
 
         for i in range(0, len(traces)):
             # Сохранение всех выбранных trace
@@ -123,9 +124,9 @@ def get_dict_from_str(color):
     """
     if isinstance(color, str):
         # print('C:', color, color[5:-1])
-        color = color[5:-1].split(',')
+        color_splited = color[5:-1].split(',')
         try:
-            color = {'r': int(color[0]), 'g': int(color[1]), 'b': int(color[2]), 'a': int(color[3])}
+            color = {'r': int(color_splited[0]), 'g': int(color_splited[1]), 'b': int(color_splited[2]), 'a': int(color_splited[3])}
         except:
             logger.warning('Can not get color-dict from string.')
     return color
@@ -148,13 +149,13 @@ def update_settings(selected_traces, trace_name, lines_type_options, lines_type_
     """
     if selected_figure != [] and selected_figure is not None and selected_traces != [] and selected_traces is not None:
         trace_settings = RW.dash.child(selected_figure).child(selected_traces).val()
-        logger.debug('fig_set', RW.dash.child(selected_figure).val())
+        logger.debug('Figure {} was load'.format(selected_figure))
         try:
             figure_settings = RW.dash.child(selected_figure).val()
         except AttributeError:
-            figure_settings = {'graph_type': 'scattergl', 'name': selected_figure}
+            figure_settings = {'graph_type': 'scatter', 'name': selected_figure}
         try:
-            figure_type = figure_settings.get('graph_type', 'scattergl')
+            figure_type = figure_settings.get('graph_type', 'scatter')
         except AttributeError:
             figure_type = figure_settings
         trace_name = trace_settings.get('name')
@@ -163,7 +164,7 @@ def update_settings(selected_traces, trace_name, lines_type_options, lines_type_
         trace_marker_color = {'rgb': get_dict_from_str(trace_marker_color['rgb'])}
         trace_marker_size = trace_marker.get('size', 10)
 
-        if figure_type.lower() in [None, 'scattergl', 'trajectory']:
+        if figure_type.lower() in [None, 'scatter', 'trajectory']:
             trace_lines_type = trace_settings.get('mode', 'lines+markers')
 
             trace_line = trace_settings.get('line', {'color': DEFAULT_COLOR, 'width': 5})
@@ -209,7 +210,7 @@ def save_settings_to_redis(n, selected_figure, graph_type, selected_traces, sele
             selected_traces is not None and selected_traces != []:
 
         # Создаём словарь нужного формата
-        trace_type = RW.dash.child(selected_figure).child(selected_traces).val().get('graph_type', 'scattergl')
+        trace_type = RW.dash.child(selected_figure).child(selected_traces).val().get('graph_type', 'scatter')
         settings = to_settings_type(selected_figure, graph_type, selected_traces, selected_stream, trace_type, trace_name,
                                     line_color, marker_color, line_width, marker_size, lines_type)
         try:
@@ -251,13 +252,16 @@ def to_settings_type(selected_figure, graph_type, selected_traces, selected_stre
             # Если данные уже приведены к нужному типу
             pass
 
-        if trace_type.lower() in ['scattergl', 'trajectory']:
+        if trace_type.lower() in ['scatter', 'trajectory']:
             # Преобразование формата получаемого color_picker в rgb-string
             try:
                 marker_color = 'rgba({},{},{},{})'.format(marker_color['rgb']['r'], marker_color['rgb']['g'],
                                                          marker_color['rgb']['b'], marker_color['rgb']['a'])
             except KeyError:
                 # Если данные уже приведены к нужному типу
+                pass
+            except TypeError:
+                # Если до этого не было выбрано значение marker_color
                 pass
 
             setting = {selected_figure: {selected_traces: {
@@ -326,9 +330,9 @@ def load_settings_for_figure_block(figure):
         stream_options = update_stream()
         stream_value = figure_settings.get('stream')
         traces = figure_settings.get('traces', [])
-        graph_type = figure_settings.get('graph_type', 'scattergl').lower()
+        graph_type = figure_settings.get('graph_type', 'scatter').lower()
         return {}, graph_type, stream_options, stream_value, traces
-    return {'display': 'none'}, 'scattergl', update_stream(), None, None
+    return {'display': 'none'}, 'scatter', update_stream(), None, None
 
 # # # # # # # # Классы Callback # # # # # # # #
 
