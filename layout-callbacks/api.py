@@ -45,6 +45,19 @@ def figure_deletion():
             return redirect("/loading/")
 
 
+@server.route('/dash/api/optional')
+def figure_optional():
+    if request.args:
+        uuid = request.args.get('uuid', 'default').lower()
+        figure_id = request.args.get('figure_id')
+        if figure_id is not None:
+            return parse_params(uuid, figure_id, dict(request.args), method='optional')
+        else:
+            return resp(400, 'Figure id is None.')
+    else:
+        return redirect("/loading/")
+
+
 @server.route('/dash/api')
 def figure_work():
     if request.args:
@@ -79,8 +92,58 @@ def figure_work():
             return redirect("/loading/")
 
 
-def parse_params(uuid, figure_id, params):
-    def validate(figure_id, params):
+def parse_params(uuid, figure_id, params, method=None):
+    def validate_optional(figure_id, params):
+        if figure_id:
+            try:
+                int(figure_id)
+            except ValueError:
+                mess = 'Figure_id is not integer.'
+                logger.error(mess)
+                return 415, mess
+        else:
+            mess = 'Does not have figure_id.'
+            logger.error(mess)
+            return 400, mess
+        graph_type = params.get('graph_type')
+        trace = params.get('trace_id')
+        line_color = params.get('line_color')
+        line_width = params.get('line_width')
+        marker_color = params.get('marker_color')
+        marker_size = params.get('marker_size')
+        if graph_type is None:
+            # TODO: get graph_type from redis
+            mess = 'Graph type must be string, not None'
+            logger.error(mess)
+            return 400, mess
+        if trace is None:
+            mess = 'Trace_id must be number, not None'
+            logger.error(mess)
+            return 400, mess
+        else:
+            try:
+                int(trace)
+            except ValueError:
+                mess = 'Trace is not integer.'
+                logger.error(mess)
+                return 415, mess
+        if graph_type.lower() not in ['trajectory', 'bar', 'scatter']:
+            mess = 'Graph type {} does not exist.'.format(graph_type)
+            logger.error(mess)
+            return 400, mess
+        if graph_type.lower() == 'bar':
+            if marker_color is None or marker_size is None:
+                mess = 'Graph type bar needed marker color and marker size params.'
+                logger.error(mess)
+                return 400, mess
+        else:
+            if line_color is None or line_width is None or marker_color is None or marker_size is None:
+                mess = 'Graph type {} needed more params.'.format(graph_type)
+                logger.error(mess)
+                return 400, mess
+        return 200, 'OK'
+
+    def validate_work(figure_id, params):
         if figure_id:
             try:
                 int(figure_id)
@@ -125,32 +188,49 @@ def parse_params(uuid, figure_id, params):
                     logger.error(mess)
                     return 400, mess
         return 200, 'OK'
-
-    code, message = validate(figure_id, params)
+    if method is None or method == 'work':
+        code, message = validate_work(figure_id, params)
+    elif method == 'optional':
+        code, message = validate_optional(figure_id, params)
+    else:
+        logger.warning('Method {} do not exist.'.format(method))
+        return resp(500, 'Method {} do not exist.'.format(method))
     if code == 200:
         figure = RWrapper(uuid).dash.child("figure{}".format(figure_id))
+        if method is None or method == 'work':
+            logger.info('Params are valid. Setting up: graph_type, stream, traces for figure {}'.format(figure))
+            valid_params = {'graph_type': params.pop('graph_type'), 'stream': params.pop('stream'),
+                            'traces': params.pop('traces')}
+            for param in valid_params:
+                if param == 'traces':
+                    # Удаление всех прошлых ключей trace
+                    try:
+                        figure_children = figure.val()
+                        for i in figure_children.keys():
+                            if 'trace' in i:
+                                figure.child(i).rem()
+                    except AttributeError:
+                        # значит, таких ключей нет
+                        pass
+                    for i in range(0, len(valid_params[param])):
+                        figure.child('trace{}'.format(i)).name.set(valid_params[param][i])
+                    continue
+                if param == 'stream':
+                    valid_params['stream'] = 'S_0:' + valid_params['stream'] + ':Rlist'
+                # figure.child(param).set(valid_params[param])
+        elif method == 'optional':
+            logger.info('Params are valid. Setting up: lines and markers for figure {}'.format(figure))
+            trace = params.pop('trace_id')
+            valid_params = {'marker_color': params.pop('marker_color'), 'marker_size': params.pop('marker_size')}
+            if params['graph_type'] != 'bar':
+                valid_params.update({'line_color': params.pop('line_color'),
+                                     'line_width': params.pop('line_width')})
+            for param in valid_params:
+                parent = param.split('_')[0]
+                child = param.split('_')[1]
+                figure.child('trace{}'.format(trace)).child(parent).child(child).set(valid_params[param])
+            figure.graph_id.set(params['graph_type'])
 
-        logger.info('Params are valid. Setting up: graph_type, stream, traces for figure {}'.format(figure))
-        valid_params = [params.pop('graph_type')] + [params.pop('stream')] + \
-                       [params.pop('traces')]
-        valid_params = {'graph_type': valid_params[0], 'stream': valid_params[1], 'traces': valid_params[2]}
-        for param in valid_params:
-            # print("{} ({}): {} ({})".format(param, type(param), valid_params[param], type(valid_params[param])))
-            if param == 'traces':
-                # Удаление всех прошлых ключей trace
-                try:
-                    figure_children = figure.val()
-                    for i in figure_children.keys():
-                        if 'trace' in i:
-                            figure.child(i).rem()
-                except AttributeError:
-                    # значит, таких ключей нет
-                    pass
-                for i in range(0, len(valid_params[param])):
-                    figure.child('trace{}'.format(i)).name.set(valid_params[param][i])
-            if param == 'stream':
-                valid_params['stream'] = 'S_0:' + valid_params['stream'] + ':Rlist'
-            figure.child(param).set(valid_params[param])
         logger.info('OK.')
         if params != {}:
             logger.warning('There are untracked variables: '+str(params))

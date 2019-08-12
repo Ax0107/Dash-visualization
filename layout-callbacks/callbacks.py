@@ -259,6 +259,9 @@ def to_settings_type(selected_figure, graph_type, selected_traces, selected_stre
             except KeyError:
                 # Если данные уже приведены к нужному типу
                 pass
+            except TypeError:
+                # Если до этого не было выбрано значение marker_color
+                pass
 
             setting = {selected_figure: {selected_traces: {
                                                 'line': {'color': line_color, 'width':  line_width},
