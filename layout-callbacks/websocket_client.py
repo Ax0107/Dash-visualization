@@ -45,11 +45,11 @@ async def tcp_echo_client(loop):
         import time
         print(time.time())
         t = time.time()
-
+        x = 1000
         while True:
 
-            x = math.sin(datetime.now().timestamp()*0.01)*(random()+1)
-            y = math.cos(datetime.now().timestamp()*0.1)*(random()+1)
+            x = math.sin(datetime.now().timestamp()*x)*(random()+x)
+            y = math.cos(datetime.now().timestamp()*0.1)*(random()+10)
             z = math.sin(datetime.now().timestamp()*0.001)*(random()+1)
             # print(x,y,z)
             s = '<Trajectory PacketNumber="%s" Time="%s" Y="%s" X="%s" Z="%s" />' % (

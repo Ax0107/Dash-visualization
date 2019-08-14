@@ -97,6 +97,8 @@ def settings_panel():
             dbc.CardBody([
                 html.H5('График:'),
                 dropdown('figures', is_global=True),
+                dbc.Button('Обновить', id='btn-update',
+                           color="light", style={"width": "100%", 'margin-top': '10px'}),
                 dbc.Col([
                     dbc.Button('Добавить новый', id='create-graph',
                                color='primary', style={"width": "50%", 'margin-top': '10px'}),
@@ -145,11 +147,6 @@ def settings_panel():
                                 # режим линии (маркер, маркеры+линия, линия)
                                 card('card-line-type-selector', "Тип линии", dropdown('mode', is_global=True))
                             ]),
-
-                            dbc.CardFooter([
-                                dbc.Button('Сохранить', id='btn-save-global-style',
-                                           color="primary", style={"width": "100%"}),
-                            ])
                         ])
                     ], id='global-edit-block')
                 ])

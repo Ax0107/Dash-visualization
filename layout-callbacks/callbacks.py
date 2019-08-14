@@ -12,12 +12,11 @@ UUID = 'test'
 RW = RWrapper(UUID)
 
 
-def update_figures(n, d, selected_figure):
+def update_figures(n, d, u, selected_figure):
     """
     Добавляет/удаляет/загружает графики в/из Redis
     :param n: обработчик кнопки "добавить" (n_clicks)
     :param d: обработчик кнопки "удалить" (n_clicks)
-    :param figure_type: тип фигуры из dropdown (scatter/bar)
     :param selected_figure: выбранный график
     :return: options for dropdown, value of dropdown
     """
@@ -48,6 +47,7 @@ def update_figures(n, d, selected_figure):
         RW.dash.set({figure: {'name': figure, 'graph_type': 'scatter'}})
         figures.append({'label': figure, 'value': figure})
         value = figure
+    # Если мы обновяем figures, то просто возвращаем фигуры
 
     return figures, value
 
@@ -189,11 +189,10 @@ def update_settings(selected_traces, trace_name, lines_type_options, lines_type_
         {'display': 'none'}, {'display': 'none'}, lines_type_options
 
 
-def save_settings_to_redis(n, selected_figure, graph_type, selected_traces, selected_stream, trace_name, line_color, marker_color, line_width,
-                           marker_size, lines_type):
+def save_settings_to_redis(trace_name, line_color, marker_color, line_width,
+                           marker_size, lines_type, selected_figure, graph_type, selected_traces, selected_stream):
     """
     Сохранение настроек в Redis
-    :param n: обработчик кнопки "добавить" (n_clicks)
     :param selected_figure: выбранный графки
     :param graph_type: тип графика
     :param selected_traces: выбранная линия
@@ -206,32 +205,31 @@ def save_settings_to_redis(n, selected_figure, graph_type, selected_traces, sele
     :param lines_type: тип линий графика
     :return: alert
     """
-    if dash.callback_context.triggered[0]['prop_id'] == 'btn-save-global-style.n_clicks'and \
-            selected_traces is not None and selected_traces != []:
-
+    if list(set(map(lambda i: i not in [None, []], [selected_figure, selected_stream, selected_traces])))[0]:
         # Создаём словарь нужного формата
         trace_type = RW.dash.child(selected_figure).child(selected_traces).val().get('graph_type', 'scatter')
-        settings = to_settings_type(selected_figure, graph_type, selected_traces, selected_stream, trace_type, trace_name,
-                                    line_color, marker_color, line_width, marker_size, lines_type)
+        settings = to_settings_type(trace_name, line_color, marker_color, line_width,
+                                    marker_size, lines_type, selected_figure, graph_type,
+                                    selected_traces, selected_stream)
         try:
             # Создаём ключ для того, чтобы отловить сохранение настроек и перезагрузить графики
             settings.update({'dash-reload': True})
             RW.dash.set(settings)
-            return [True, 'success', 'Настройки сохранены']
+            return [False, 'success', 'Настройки сохранены']
         except:
             return [True, 'danger', 'Произошла ошибка при сохранении данных. Настройки не сохранены']
     return [False, 'success', '']
 
 
-def to_settings_type(selected_figure, graph_type, selected_traces, selected_stream, trace_type,
-                     new_trace_name, line_color, marker_color, line_width, marker_size, lines_type):
+def to_settings_type(new_trace_name, line_color, marker_color, line_width,
+                     marker_size, lines_type, selected_figure, graph_type, selected_traces, selected_stream):
     """
     Преобразует данные к правильному типу (напр.: данные с color-picker в виде dict -> str)
     :param selected_figure: выбранный графки
     :param graph_type: тип графика
     :param selected_traces: выбранная линия
     :param selected_stream: выбранный поток
-    :param trace_type: тип линии линии
+    :param graph_type: тип линии линии
     :param new_trace_name: новое имя (name) линии
     :param line_color: цвет линии
     :param marker_color: цвет маркера
@@ -251,8 +249,11 @@ def to_settings_type(selected_figure, graph_type, selected_traces, selected_stre
         except KeyError:
             # Если данные уже приведены к нужному типу
             pass
+        except TypeError:
+            # Если до этого не было выбрано значение line_color
+            pass
 
-        if trace_type.lower() in ['scatter', 'trajectory']:
+        if graph_type.lower() in ['scatter', 'trajectory']:
             # Преобразование формата получаемого color_picker в rgb-string
             try:
                 marker_color = 'rgba({},{},{},{})'.format(marker_color['rgb']['r'], marker_color['rgb']['g'],
@@ -324,6 +325,7 @@ def load_settings_for_figure_block(figure):
     :param figure: выбранный график
     :return: style
     """
+
     if figure is not None and figure != []:
         figure_settings = RW.dash.child(figure).val()
         logger.debug('Loaded figure settings:'+str(figure_settings))
@@ -331,8 +333,8 @@ def load_settings_for_figure_block(figure):
         stream_value = figure_settings.get('stream')
         traces = figure_settings.get('traces', [])
         graph_type = figure_settings.get('graph_type', 'scatter').lower()
-        return {}, graph_type, stream_options, stream_value, traces
-    return {'display': 'none'}, 'scatter', update_stream(), None, None
+        return {}, graph_type, stream_options, stream_value, traces, None, None
+    return {'display': 'none'}, 'scatter', update_stream(), None, None, None, None
 
 # # # # # # # # Классы Callback # # # # # # # #
 
@@ -356,7 +358,6 @@ class CallbackObj(object):
 class SettingsPanel(CallbackObj):
     def __init__(self):
         super().__init__()
-        # TODO: обновлять options для figures, streams, visible_traces через Interval ???
 
         # Юзер: *создаёт график*
 
@@ -365,7 +366,8 @@ class SettingsPanel(CallbackObj):
             (([Output('global-figures-selector', 'options'),
               Output('global-figures-selector', 'value')],
               [Input('create-graph', 'n_clicks'),
-               Input('delete-graph', 'n_clicks')],
+               Input('delete-graph', 'n_clicks'),
+               Input('btn-update', 'n_clicks')],
               [State('global-figures-selector', 'value')]), update_figures))
 
         # Юзер: *выбирает график*
@@ -377,11 +379,12 @@ class SettingsPanel(CallbackObj):
                Output('global-figure-type-selector', 'value'),
                Output('global-stream-selector', 'options'),
                Output('global-stream-selector', 'value'),
-               Output('global-visible-traces-selector', 'value')],
+               Output('global-visible-traces-selector', 'value'),
+               Output('global-traces-selector', 'value'),
+               Output('global-card-trace-name', 'value')],
               [Input('global-figures-selector', 'value')]), load_settings_for_figure_block))
 
         # Юзер: *выбирает поток для отрисовки графика*
-
         # Показ возможных данных для отрисовки из потока
         self.val.append(
             ((Output('global-visible-traces-selector', 'options'),
@@ -434,15 +437,14 @@ class SettingsPanel(CallbackObj):
             (([Output('alert', 'is_open'),
                Output('alert', 'color'),
                Output('alert', 'children')],
-              [Input('btn-save-global-style', 'n_clicks')],
+              [Input('global-input-trace-name', 'value'),
+               Input('global-color-picker-line', 'value'),
+               Input('global-color-picker-marker', 'value'),
+               Input('global-input-line-width', 'value'),
+               Input('global-input-marker-size', 'value'),
+               Input('global-lines-type', 'value')],
               [State('global-figures-selector', 'value'),
                State('global-figure-type-selector', 'value'),
                State('global-traces-selector', 'value'),
-               State('global-stream-selector', 'value'),
-               State('global-input-trace-name', 'value'),
-               State('global-color-picker-line', 'value'),
-               State('global-color-picker-marker', 'value'),
-               State('global-input-line-width', 'value'),
-               State('global-input-marker-size', 'value'),
-               State('global-lines-type', 'value')]), save_settings_to_redis))
+               State('global-stream-selector', 'value')]), save_settings_to_redis))
 

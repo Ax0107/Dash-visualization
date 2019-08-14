@@ -1,0 +1,29 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+    <title>Flask-SocketIO Test</title>
+    <!--<script src="//code.jquery.com/jquery-1.12.4.min.js" integrity="sha256-ZosEbRLbNQzLpnKIkEdrPv7lOy9C27hHQ+Xp8a4MxAQ=" crossorigin="anonymous"></script>-->
+    <!--<script src="//cdnjs.cloudflare.com/ajax/libs/socket.io/2.2.0/socket.io.js" integrity="sha256-yr4fRk/GU1ehYJPAs8P4JlTgu0Hdsp4ZKrx8bDEDC3I=" crossorigin="anonymous"></script>-->
+    <script src="//code.jquery.com/jquery-1.12.4.min.js"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/socket.io/2.2.0/socket.io.js"></script>
+    <script src="../static/index.js"></script>
+    <style type="text/css">
+        td.column_value {
+            max-width: 150px;
+            //min-width: 90px;
+            padding-right: 10px;
+            text-align: left;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+    </style>
+</head>
+<body>
+    <!--<h1>Flask-SocketIO Test</h1>
+    <p>Async mode is: <b>{{ async_mode }}</b></p>
+    <p>Average ping/pong latency: <b><span id="ping-pong"></span>ms</b></p>-->
+    <h2>Receive:</h2>
+    <table id="log"></table>
+</body>
+</html>
