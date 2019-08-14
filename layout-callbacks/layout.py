@@ -118,7 +118,7 @@ def settings_panel():
                     html.Hr(),
                     dbc.Card([
                         dbc.Button('Открыть/закрыть настройки стилей', id='btn-open-global-style',
-                                   color="secondary", style={"width": "100%"}),
+                                   color="secondary", style={"width": "100%", 'margin-top': '10px'}),
                         html.Div(id='global-settings-panel', style={'display': 'none'}, children=[
                             dbc.CardHeader([html.H4('Настройки графика')]),
                             dbc.CardBody([
@@ -148,7 +148,9 @@ def settings_panel():
                                 card('card-line-type-selector', "Тип линии", dropdown('mode', is_global=True))
                             ]),
                         ])
-                    ], id='global-edit-block')
+                    ], id='global-edit-block'),
+                    dbc.Button('Сохранить', id='btn-save',
+                               color='primary', style={"width": "100%", 'margin-top': '10px'}),
                 ])
             ]),
     ])
