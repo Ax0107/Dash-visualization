@@ -135,7 +135,7 @@ class Traces(Stream):
     def validate(self):
         try:
             stream, _ = Storage(id='S_{}:Trajectory:Rlist'.format(self.params.get('stream')),
-                                 preload=True).call(start=0, end=1)
+                                preload=True).call(start=0, end=1)
             columns = list(pd.DataFrame(stream).columns)
             traces = self.value.split(',')
             for trace in traces:
@@ -147,6 +147,7 @@ class Traces(Stream):
             return 400, 'Incorrect source to draw trace'
         return self.validate_basic()
 
+
 class Color(Parameter):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -157,6 +158,7 @@ class Color(Parameter):
             if not len(self.value) >= 13 or not self.value[:5] == 'rgba(' or not self.value[-1] == ')':
                 return 0
             value_splited = self.value[5:-1].split(',')
+
             try:
                 {'r': int(value_splited[0]), 'g': int(value_splited[1]), 'b': int(value_splited[2]),
                  'a': int(value_splited[3])}
@@ -182,10 +184,10 @@ def match_class(**kwargs):
                    'stream': (Stream, {}),
                    'graph_type': (ParameterTemplate, dict(selector_options=['Trajectory', 'Bar', 'Scatter'])),
                    'traces': (Traces, dict(params=params)),
-                   'line_color': (Color, dict(type=str)),
+                   'line_color': (Color, {}),
                    'line_width': (ParameterTemplate, dict(type=int)),
-                   'marker_color': (Color, dict(type=str)),
-                   'marker_size': (Color, dict(type=str))
+                   'marker_color': (Color, {}),
+                   'marker_size': (ParameterTemplate, dict(type=int))
                    }
 
     ClassName, add_params = exact_match.get(name,(None,kwargs))

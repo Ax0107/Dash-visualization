@@ -50,7 +50,7 @@ def figure_optional():
         uuid = request.args.get('uuid', 'default').lower()
         figure_id = request.args.get('figure_id')
         if figure_id is not None:
-            return parse_params(uuid, figure_id, dict(request.args), method='optional')
+            return pparse_params(uuid, figure_id, dict(request.args), method='optional')
         else:
             return resp(400, 'Figure id is None.')
     else:
@@ -92,7 +92,11 @@ def figure_work():
 
 
 def pparse_params(uuid, figure_id, params, method=None):
-    ans = parse_params(params, required_list=['figure_id', 'stream', 'traces'])
+    if method == 'work':
+        ans = parse_params(params, required_list=['figure_id', 'stream', 'traces'])
+    elif method == 'optional':
+        ans = parse_params(params, required_list=['figure_id', 'line_color',
+                                                  'line_width', 'marker_color', 'marker_size'])
     if ans.code == 200:
         # figure = RWrapper(uuid).dash.child("figure{}".format(figure_id))
         # TODO: to redis
