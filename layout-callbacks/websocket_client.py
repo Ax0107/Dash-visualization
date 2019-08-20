@@ -47,13 +47,16 @@ async def tcp_echo_client(loop):
         t = time.time()
         x = 1000
         while True:
+            x = math.sin(datetime.now().timestamp() * x) * (random() + x)
+            y = math.cos(datetime.now().timestamp() * 0.1) * (random() + 10)
+            z = math.sin(datetime.now().timestamp() * 0.001) * (random() + 1)
+            x2 = math.sin(datetime.now().timestamp() * x) * (random() + x)
+            y2 = math.cos(datetime.now().timestamp() * 0.1) * (random() + 10)
+            z2 = math.sin(datetime.now().timestamp() * 0.001) * (random() + 1)
 
-            x = math.sin(datetime.now().timestamp()*x)*(random()+x)
-            y = math.cos(datetime.now().timestamp()*0.1)*(random()+10)
-            z = math.sin(datetime.now().timestamp()*0.001)*(random()+1)
             # print(x,y,z)
-            s = '<Trajectory PacketNumber="%s" Time="%s" Y="%s" X="%s" Z="%s" />' % (
-            pn, time.time() - t, x, y, -z)
+            s = '<Trajectory PacketNumber="%s" Time="%s" Y="%s" X="%s" Z="%s" Y2="%s" X2="%s" Z2="%s"/>' % (
+                pn, time.time() - t, x, y, -z, x2, y2, z2)
             pn+=1
             message = s.encode()
             # print('Send: %r' % message)

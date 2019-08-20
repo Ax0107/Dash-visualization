@@ -1,4 +1,8 @@
 $(document).ready(function() {
+
+            //var height = window.parent.$("iframe").height()
+            //var width = window.parent.$("iframe").width()
+
             // Use a "/test" namespace.
             // An application can open a connection on multiple namespaces, and
             // Socket.IO will multiplex all those connections on a single
@@ -29,6 +33,7 @@ $(document).ready(function() {
                 var length_table;  // ширина выводимых дынных
                 var $log = $('#log');
                 var newTR = document.createElement('tr');
+
                 newTR.className = "line";
                 $log.append(newTR);
 
@@ -37,8 +42,11 @@ $(document).ready(function() {
                     newTD.className = "column_key";
                     newTD.innerHTML = key +':';
                     newTR.append(newTD);
-
                     value = data[key];
+                    if(key != 'Time' & key != 'PacketNumber'){
+                        value = parseFloat(data[key]);
+                        value = Math.round(value * 10000)/10000;
+                    }
                     newTD = document.createElement('td');
                     newTD.className = "column_value";
                     newTD.innerHTML = value + ',';

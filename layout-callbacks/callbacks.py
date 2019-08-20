@@ -92,6 +92,29 @@ def update_traces(traces, figure):
         # print(figure_children)
         return [{'label': '{} ({})'.format(figure_children[i]['name'], i), 'value': i}
                 for i in figure_children.keys() if 'trace' in i and i != 'traces']
+
+        existing_traces = figure_children.get('traces', [])
+
+        # Удаление всех прошлых ключей traces
+        for i in figure_children.keys():
+            # Если i - dict, то это trace. Иначе это просто переменная figure
+            if i not in existing_traces and isinstance(i, dict):
+                RW.dash.child(figure).child(i).remove()
+
+        for i in range(0, len(traces)):
+            # Сохранение всех выбранных trace
+            RW.dash.child(figure).set({
+                'trace{}'.format(i): {
+                    'name': traces[i],
+                    'name_id': traces[i]}
+                }
+            )
+            RW.dash.child(figure).set({'traces': traces, 'stream': stream})
+        # Обновляем значение переменной figure_children с новыми traces
+        figure_children = RW.dash.child(figure).val()
+        print(figure_children)
+        return [{'label': '{} ({})'.format(figure_children[i]['name'], i), 'value': i}
+                for i in figure_children.keys() if i not in ['traces', 'name', 'type', 'stream']]
     return []
 
 
@@ -193,7 +216,7 @@ def save_settings_to_redis(n, visible_traces, selected_figure, graph_type, selec
 
         if dash.callback_context.triggered[0]['prop_id'] == 'btn-save.n_clicks':
             # Создаём ключ для того, чтобы отловить сохранение настроек и перезагрузить графики
-            settings.update({'dash-reload': True})
+            settings.update({'dash_reload': True})
 
         try:
             figure_children = RW.dash.child(selected_figure).val()
@@ -214,7 +237,6 @@ def save_settings_to_redis(n, visible_traces, selected_figure, graph_type, selec
                 )
                 traces.append(visible_traces[i])
             RW.dash.child(selected_figure).traces.set(traces)
-
             RW.dash.set(settings)
             if dash.callback_context.triggered[0]['prop_id'] == 'btn-save.n_clicks':
                 return [True, 'success', 'Настройки сохранены']

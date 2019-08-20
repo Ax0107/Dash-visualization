@@ -1,3 +1,0 @@
-# Text streamer
-
-Text streamer
