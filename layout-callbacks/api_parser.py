@@ -15,6 +15,7 @@ def populate_kwargs(params, kwargs):
         kwargs['Storage'] = Storage(id='S_{}:Trajectory:Rlist'.format(params['stream']), preload=False)
     return kwargs
 
+
 class BaseContainer(object):
     def __init__(self, **kwargs):
         for key in kwargs.keys():
@@ -33,12 +34,14 @@ class Parameter(BaseContainer):
         self.selector = True if self.selector_options else False
 
         if not self.type and self.name:
-            logger.info('To enable type check for {} set expected type in api_parser.match class'.format(self.name))
+            logger.info('To enable type check for {} set expected type in api_parser.match_class'.format(self.name))
 
     def validate_basic(self):
         if self.selector:
             if self.value not in self.selector_options:
-                return 400, '{} cannot be {}, allowed options are {}'.format(self.name,self.value,self.selector_options)
+                return 400, '{} cannot be {}, allowed options are {}'.format(self.name,
+                                                                             self.value,
+                                                                             self.selector_options)
         if self.type and type(self.value) != self.type:
             try:
                 self.value = {"<class 'str'>": str(self.value),
@@ -56,7 +59,7 @@ class Parameter(BaseContainer):
 
     def save(self, figure):
         # placeholder to overwrite in children classes
-        return None, None
+        return 200, 'OK'
 
 
 class ResponseStack(object):
@@ -72,23 +75,25 @@ class ResponseStack(object):
 
     def __init__(self):
         self.code = 200
-        self.stack=[]
+        self.stack = []
+        self.msg = ''
 
     def push(self, msg):
-        if msg[0] != 200:
+        if msg[0] != 200 and msg[0] != 201:
             # decide what response code to set here
             logger.warning('failed to parse parameters. {}'.format(msg))
             self.code = msg[0]
+            self.msg = msg[1]
         self.stack.append(msg)
 
     def status(self):
-        if self.code==200:
+        if self.code == 200:
             return 'OK'
         else:
             return 'ERROR'
 
 
-def parse_params(params, required_list=[],**kwargs):
+def parse_params(params, uuid=None, figure_id=None, required_list=[],**kwargs):
     """Parser entrance point
     Usage:
     Params([parameters_to_parse],required_list=[Arbitrary parameter names], **kwargs)
@@ -100,6 +105,8 @@ def parse_params(params, required_list=[],**kwargs):
 
     responses = ResponseStack()
     kwargs = populate_kwargs(params, kwargs)
+    params['uuid'] = uuid
+    params['figure_id'] = figure_id
     for key in params.keys():
         responses.push(match_class(name=key, params=params, value=params[key], **kwargs).validate())
         try:
@@ -111,21 +118,21 @@ def parse_params(params, required_list=[],**kwargs):
     return responses
 
 
-def save_params(params, uuid, figure_id, **kwargs):
+def save_params(params, uuid='default', figure_id=1, **kwargs):
     """
     Save params to Redis
-    :param params: params
-    :param kwargs: for future use
+
     :return: 201 code on success
     """
     responses = ResponseStack()
     kwargs = populate_kwargs(params, kwargs)
-    rw = RWrapper(params.get('uuid'))
-    figure = rw.__getattr__('figure{}'.format(figure_id))
+    figure = RWrapper(uuid).dash.__getattr__('figure{}'.format(figure_id))
+    figure.graph_type.set(params.get('graph_type', 'trajectory'))
     for key in params.keys():
         if key not in ['uuid', 'figure_id']:
             responses.push(match_class(name=key, params=params, value=params[key], **kwargs).save(figure))
     return responses
+
 
 class ParameterTemplate(Parameter):
     def __init__(self,**kwargs):
@@ -161,7 +168,7 @@ class Traces(Parameter):
             return 400, 'Stream with id {} does not exist.'.format(self.params.get('stream'))
         try:
             stream, _ = Storage(id='S_{}:Trajectory:Rlist'.format(self.params.get('stream')),
-                                preload=True).call(start=0, end=1)
+                                preload=False).call(start=0, end=1)
             columns = list(pd.DataFrame(stream).columns)
             traces = self.value.split(',')
             for trace in traces:
@@ -238,7 +245,7 @@ def match_class(**kwargs):
         if add_params:
             kwargs = {**kwargs, **add_params}
         return ClassName(**kwargs)
-    elif name == 'traces':
+    elif 'trace' in name:
         return Traces(**kwargs)
     else:
         tmp = BaseContainer

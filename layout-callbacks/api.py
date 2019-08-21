@@ -16,7 +16,7 @@ def to_json(data):
 
 
 def resp(code, data):
-    return make_response(to_json(data), code)
+    return make_response(to_json(str(code)+'. '+data), code)
 
 
 @server.route('/dash/api/delete')
@@ -69,15 +69,13 @@ def figure_work():
             logger.info('Figure id is not selected. Giving id.')
             figures = RWrapper(uuid).dash.get_children('figure')
             if len(figures):
-                # Список из figure, чьё имя заканчивается на цифру?
                 fig_count = list(map(lambda i: int(re.search(r'\d+$', i).group()) if re.search(r'\d+$', i) else 0,
                                      figures.pop().__name__))
-                # ?
                 i = next(filterfalse(set(fig_count).__contains__, count(1)))
 
                 names = [i.__name__ for i in figures]
-                logger.info('Figure id {} is already exist. Giving another id.'.format(i))
                 while 'dash.figure{}'.format(i) in names:
+                    logger.debug('Figure id {} is already exist. Giving another id.'.format(i))
                     i += 1
             else:
                 i = 1
@@ -93,17 +91,18 @@ def figure_work():
 
 def pparse_params(uuid, figure_id, params, method=None):
     if method == 'work' or method is None:
-        ans = parse_params(params, required_list=['stream', 'traces'])
+        ans = parse_params(params, uuid=uuid, figure_id=figure_id, required_list=['stream', 'traces'])
     elif method == 'optional':
         ans = parse_params(params, required_list=['figure_id', 'line_color',
                                                   'line_width', 'marker_color', 'marker_size'])
     if ans.code == 200:
-        logger.debug('Saving to redis...')
+        logger.info('Params are valid. Saving to Redis...')
         ans = save_params(params, uuid, figure_id)
+        logger.info('OK')
         return redirect("/loading/")
     else:
         # TODO: return ans.msg
-        return resp(ans.code, str(ans.code))
+        return resp(ans.code, ans.msg)
 
 
 
