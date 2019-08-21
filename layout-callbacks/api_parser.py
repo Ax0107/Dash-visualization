@@ -22,7 +22,7 @@ class BaseContainer(object):
 
 
 class Parameter(BaseContainer):
-    def __init__(self,value, **kwargs):
+    def __init__(self, value, **kwargs):
         self.name = None
         self.type = None
         self.params = None
@@ -46,11 +46,17 @@ class Parameter(BaseContainer):
                               "<class 'float'>": float(self.value)}[str(self.type)]
             except TypeError:
                 return 415, '{} expected. Received {}={}.'.format(self.type, self.name, self.value)
+            except ValueError:
+                return 415, '{} expected. Received {}={}.'.format(self.type, self.name, self.value)
         return 200, 'Value of {} set to {}'.format(self.name,self.value)
 
     def validate(self):
-        #placeholder to overwrite in children classes
+        # placeholder to overwrite in children classes
         return self.validate_basic()
+
+    def save(self, figure):
+        # placeholder to overwrite in children classes
+        return None, None
 
 
 class ResponseStack(object):
@@ -68,7 +74,7 @@ class ResponseStack(object):
         self.code = 200
         self.stack=[]
 
-    def push(self,msg):
+    def push(self, msg):
         if msg[0] != 200:
             # decide what response code to set here
             logger.warning('failed to parse parameters. {}'.format(msg))
@@ -82,10 +88,6 @@ class ResponseStack(object):
             return 'ERROR'
 
 
-
-
-
-
 def parse_params(params, required_list=[],**kwargs):
     """Parser entrance point
     Usage:
@@ -97,17 +99,33 @@ def parse_params(params, required_list=[],**kwargs):
     """
 
     responses = ResponseStack()
-    kwargs = populate_kwargs(params,kwargs)
+    kwargs = populate_kwargs(params, kwargs)
     for key in params.keys():
-        responses.push(match_class(name = key, params=params, value = params[key],**kwargs).validate())
+        responses.push(match_class(name=key, params=params, value=params[key], **kwargs).validate())
         try:
             required_list.remove(key)
         except:
             pass
     if required_list:
-        responses.push((400,'Missing required parameters - {}'.format(required_list)))
+        responses.push((400, 'Missing required parameters - {}'.format(required_list)))
     return responses
 
+
+def save_params(params, uuid, figure_id, **kwargs):
+    """
+    Save params to Redis
+    :param params: params
+    :param kwargs: for future use
+    :return: 201 code on success
+    """
+    responses = ResponseStack()
+    kwargs = populate_kwargs(params, kwargs)
+    rw = RWrapper(params.get('uuid'))
+    figure = rw.__getattr__('figure{}'.format(figure_id))
+    for key in params.keys():
+        if key not in ['uuid', 'figure_id']:
+            responses.push(match_class(name=key, params=params, value=params[key], **kwargs).save(figure))
+    return responses
 
 class ParameterTemplate(Parameter):
     def __init__(self,**kwargs):
@@ -126,13 +144,21 @@ class Stream(Parameter):
             return 400, mess
         return self.validate_basic()
 
+    def save(self, figure):
+        stream = 'S_{}:Trajectory:Rlist'.format(self.params['stream'])
+        figure.stream.set(stream)
+        return 201, 'Created'
 
-class Traces(Stream):
+
+class Traces(Parameter):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.name = 'traces'
 
     def validate(self):
+        code, msg = Stream(value=self.params.get('stream')).validate()
+        if code != 200:
+            return 400, 'Stream with id {} does not exist.'.format(self.params.get('stream'))
         try:
             stream, _ = Storage(id='S_{}:Trajectory:Rlist'.format(self.params.get('stream')),
                                 preload=True).call(start=0, end=1)
@@ -147,6 +173,21 @@ class Traces(Stream):
             return 400, 'Incorrect source to draw trace'
         return self.validate_basic()
 
+    def save(self, figure):
+        # Удаление всех прошлых ключей trace
+        try:
+            figure_children = figure.val()
+            for i in figure_children.keys():
+                if 'trace' in i:
+                    figure.child(i).rem()
+        except AttributeError:
+            # значит, таких ключей нет
+            pass
+        traces = self.value.split(',')
+        for i in range(0, len(traces)):
+            figure.child('trace{}'.format(i)).name.set(traces[i])
+            figure.child('trace{}'.format(i)).name_id.set(traces[i])
+        return 201, 'Created'
 
 class Color(Parameter):
     def __init__(self, **kwargs):
@@ -176,13 +217,15 @@ class Color(Parameter):
         return self.validate_basic()
 
 
+
 def match_class(**kwargs):
     name = kwargs.get('name')
     params = kwargs.get('params')
 
-    exact_match = {'figure_id': (ParameterTemplate, dict(type=int)),
+    exact_match = {'uuid': (ParameterTemplate, dict(type=str)),
+                   'figure_id': (ParameterTemplate, dict(type=int)),
                    'stream': (Stream, {}),
-                   'graph_type': (ParameterTemplate, dict(selector_options=['Trajectory', 'Bar', 'Scatter'])),
+                   'graph_type': (ParameterTemplate, dict(selector_options=['trajectory', 'bar', 'scatter'])),
                    'traces': (Traces, dict(params=params)),
                    'line_color': (Color, {}),
                    'line_width': (ParameterTemplate, dict(type=int)),
@@ -190,7 +233,7 @@ def match_class(**kwargs):
                    'marker_size': (ParameterTemplate, dict(type=int))
                    }
 
-    ClassName, add_params = exact_match.get(name,(None,kwargs))
+    ClassName, add_params = exact_match.get(name, (None, kwargs))
     if ClassName:
         if add_params:
             kwargs = {**kwargs, **add_params}
@@ -199,10 +242,11 @@ def match_class(**kwargs):
         return Traces(**kwargs)
     else:
         tmp = BaseContainer
+
         def tmp_validate():
             return 200, 'Untracked variable: {}'.format(name)
 
-        setattr(tmp, 'validate',tmp_validate)
+        setattr(tmp, 'validate', tmp_validate)
         return tmp
 
 

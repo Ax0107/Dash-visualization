@@ -4,7 +4,7 @@ import re
 from itertools import count, filterfalse
 import json
 from redis_handler import RWrapper, Storage
-from api_parser import parse_params
+from api_parser import parse_params, save_params
 from logger import logger
 logger = logger('api')
 
@@ -92,15 +92,14 @@ def figure_work():
 
 
 def pparse_params(uuid, figure_id, params, method=None):
-    if method == 'work':
-        ans = parse_params(params, required_list=['figure_id', 'stream', 'traces'])
+    if method == 'work' or method is None:
+        ans = parse_params(params, required_list=['stream', 'traces'])
     elif method == 'optional':
         ans = parse_params(params, required_list=['figure_id', 'line_color',
                                                   'line_width', 'marker_color', 'marker_size'])
     if ans.code == 200:
-        # figure = RWrapper(uuid).dash.child("figure{}".format(figure_id))
-        # TODO: to redis
         logger.debug('Saving to redis...')
+        ans = save_params(params, uuid, figure_id)
         return redirect("/loading/")
     else:
         # TODO: return ans.msg
