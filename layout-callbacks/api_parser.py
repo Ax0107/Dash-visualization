@@ -93,7 +93,7 @@ class ResponseStack(object):
             return 'ERROR'
 
 
-def parse_params(params, uuid=None, figure_id=None, required_list=[],**kwargs):
+def parse_params(params, uuid='default', figure_id=1, required_list=[],**kwargs):
     """Parser entrance point
     Usage:
     Params([parameters_to_parse],required_list=[Arbitrary parameter names], **kwargs)
@@ -122,7 +122,7 @@ def save_params(params, uuid='default', figure_id=1, **kwargs):
     """
     Save params to Redis
 
-    :return: 201 code on success
+    :return: responses stack
     """
     responses = ResponseStack()
     kwargs = populate_kwargs(params, kwargs)
@@ -231,10 +231,10 @@ class Figure_id(Parameter):
 
 
 
-class Color(Parameter):
+class Color1(Parameter):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.name = 'color'
+        self.name = 'line_color'
 
     def validate_format(self):
         if isinstance(self.value, str):
@@ -258,6 +258,38 @@ class Color(Parameter):
             return 400, mess
         return self.validate_basic()
 
+    def save(self, figure):
+        figure.child('trace{}'.format(self.params['trace_id'])).line_color.set(self.value)
+        return 201, 'Created'
+
+class Color2(Color1):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.name = 'marker_color'
+
+    def save(self, figure):
+        figure.child('trace{}'.format(self.params['trace_id'])).marker_color.set(self.value)
+        return 201, 'Created'
+
+
+class Size1(Parameter):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.name = 'line_color'
+
+    def save(self, figure):
+        figure.child('trace{}'.format(self.params['trace_id'])).line_width.set(self.value)
+        return 201, 'Created'
+
+
+class Size2(Size1):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.name = 'line_color'
+
+    def save(self, figure):
+        figure.child('trace{}'.format(self.params['trace_id'])).marker_size.set(self.value)
+        return 201, 'Created'
 
 
 def match_class(**kwargs):
@@ -270,10 +302,10 @@ def match_class(**kwargs):
                    'graph_type': (ParameterTemplate, dict(selector_options=['trajectory', 'bar', 'scatter'])),
                    'traces': (Traces, dict(params=params)),
                    'trace_id': (Trace_id, dict(type=int)),
-                   'line_color': (Color, {}),
-                   'line_width': (ParameterTemplate, dict(type=int)),
-                   'marker_color': (Color, {}),
-                   'marker_size': (ParameterTemplate, dict(type=int))
+                   'line_color': (Color1, {}),
+                   'line_width': (Size1, dict(type=int)),
+                   'marker_color': (Color2, {}),
+                   'marker_size': (Size2, dict(type=int))
                    }
 
     ClassName, add_params = exact_match.get(name, (None, kwargs))

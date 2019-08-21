@@ -98,11 +98,10 @@ def pparse_params(uuid, figure_id, params, method=None):
                                           'line_width', 'marker_color', 'marker_size'])
     if ans.code == 200:
         logger.info('Params are valid. Saving to Redis...')
-        ans = save_params(params, uuid, figure_id)
+        save_params(params, uuid, figure_id)
         logger.info('OK')
         return redirect("/loading/")
     else:
-        # TODO: return ans.msg
         return resp(ans.code, ans.msg)
 
 
