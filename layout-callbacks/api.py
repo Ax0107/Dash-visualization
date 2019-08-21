@@ -91,10 +91,11 @@ def figure_work():
 
 def pparse_params(uuid, figure_id, params, method=None):
     if method == 'work' or method is None:
-        ans = parse_params(params, uuid=uuid, figure_id=figure_id, required_list=['stream', 'traces'])
+        ans = parse_params(params, uuid=uuid, figure_id=figure_id, required_list=['stream', 'graph_type', 'traces'])
     elif method == 'optional':
-        ans = parse_params(params, required_list=['figure_id', 'line_color',
-                                                  'line_width', 'marker_color', 'marker_size'])
+        ans = parse_params(params, uuid=uuid, figure_id=figure_id,
+                           required_list=['figure_id', 'uuid', 'trace_id', 'line_color',
+                                          'line_width', 'marker_color', 'marker_size'])
     if ans.code == 200:
         logger.info('Params are valid. Saving to Redis...')
         ans = save_params(params, uuid, figure_id)

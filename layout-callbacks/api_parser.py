@@ -196,6 +196,41 @@ class Traces(Parameter):
             figure.child('trace{}'.format(i)).name_id.set(traces[i])
         return 201, 'Created'
 
+
+class Trace_id(Parameter):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.name = 'trace_id'
+
+    def validate(self):
+        uuid = self.params.get('uuid', 'default')
+        if uuid != 'default' and RWrapper(uuid).search('*figure{}.trace{}*'.format(
+                                                        self.params['figure_id'],
+                                                        self.value)) == []:
+            return 400, 'Trace with id {} for figure{} does not exist.'.format(self.value,
+                                                                               self.params['figure_id'])
+        return 200, 'OK'
+
+
+class Figure_id(Parameter):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.name = 'figure_id'
+        if len(self.params) > 1 and ('stream' in self.params or 'traces' in self.params or
+                                     'graph_type' in self.params):
+            self.is_creation = True
+        else:
+            self.is_creation = False
+
+    def validate(self):
+        if not self.is_creation:
+            uuid = self.params.get('uuid', 'default')
+            if uuid != 'default' and RWrapper(uuid).search('*figure{}*'.format(self.value)) == []:
+                return 400, 'Figure with id {} for uuid {} does not exist'.format(self.value, self.params['uuid'])
+        return 200, 'OK'
+
+
+
 class Color(Parameter):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -230,10 +265,11 @@ def match_class(**kwargs):
     params = kwargs.get('params')
 
     exact_match = {'uuid': (ParameterTemplate, dict(type=str)),
-                   'figure_id': (ParameterTemplate, dict(type=int)),
+                   'figure_id': (Figure_id, {}),
                    'stream': (Stream, {}),
                    'graph_type': (ParameterTemplate, dict(selector_options=['trajectory', 'bar', 'scatter'])),
                    'traces': (Traces, dict(params=params)),
+                   'trace_id': (Trace_id, dict(type=int)),
                    'line_color': (Color, {}),
                    'line_width': (ParameterTemplate, dict(type=int)),
                    'marker_color': (Color, {}),
@@ -245,7 +281,7 @@ def match_class(**kwargs):
         if add_params:
             kwargs = {**kwargs, **add_params}
         return ClassName(**kwargs)
-    elif 'trace' in name:
+    elif 'traces' in name:
         return Traces(**kwargs)
     else:
         tmp = BaseContainer
