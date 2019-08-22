@@ -33,8 +33,8 @@ class Parameter(BaseContainer):
         super().__init__(**kwargs)
         self.selector = True if self.selector_options else False
 
-        if not self.type and self.name:
-            logger.info('To enable type check for {} set expected type in api_parser.match_class'.format(self.name))
+        # if not self.type and self.name:
+        #    logger.info('To enable type check for {} set expected type in api_parser.match_class'.format(self.name))
 
     def validate_basic(self):
         if self.selector:
@@ -93,7 +93,7 @@ class ResponseStack(object):
             return 'ERROR'
 
 
-def parse_params(params, uuid='default', figure_id=1, required_list=[],**kwargs):
+def parse_params(params, uuid='default', figure_id=1, required_list=[], **kwargs):
     """Parser entrance point
     Usage:
     Params([parameters_to_parse],required_list=[Arbitrary parameter names], **kwargs)
@@ -105,8 +105,13 @@ def parse_params(params, uuid='default', figure_id=1, required_list=[],**kwargs)
 
     responses = ResponseStack()
     kwargs = populate_kwargs(params, kwargs)
+
     params['uuid'] = uuid
     params['figure_id'] = figure_id
+
+    # if params.get('graph_type', '').lower() == 'trajectory':
+    #   required_list.append('stream')
+
     for key in params.keys():
         responses.push(match_class(name=key, params=params, value=params[key], **kwargs).validate())
         try:
@@ -160,13 +165,16 @@ class Stream(Parameter):
 class Traces(Parameter):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.name = 'traces'
 
-    def validate(self):
-        code, msg = Stream(value=self.params.get('stream')).validate()
-        if code != 200:
-            return 400, 'Stream with id {} does not exist.'.format(self.params.get('stream'))
-        try:
+    def check_trace(self, name):
+        if RWrapper().search('*{}.name*'.format(name)) == []:
+            return 0
+        return 1
+
+    class TraceName(Parameter):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+        def validate(self):
             stream, _ = Storage(id='S_{}:Trajectory:Rlist'.format(self.params.get('stream')),
                                 preload=False).call(start=0, end=1)
             columns = list(pd.DataFrame(stream).columns)
@@ -176,31 +184,88 @@ class Traces(Parameter):
                     mess = 'Stream {} does not have name {}.'.format(self.params.get('stream'), trace)
                     logger.error(mess)
                     return 400, mess
-        except NameError:
-            return 400, 'Incorrect source to draw trace'
-        return self.validate_basic()
+            return self.validate_basic()
+
+    class Color(Parameter):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+
+        def validate_format(self):
+            if isinstance(self.value, str):
+                if not len(self.value) >= 13 or not self.value[:5] == 'rgba(' or not self.value[-1] == ')':
+                    return 0
+                value_splited = self.value[5:-1].split(',')
+
+                try:
+                    {'r': int(value_splited[0]), 'g': int(value_splited[1]), 'b': int(value_splited[2]),
+                     'a': int(value_splited[3])}
+                except Exception:
+                    return 0
+            else:
+                return 0
+            return 1
+
+        def validate(self):
+            if not self.validate_format():
+                mess = 'Color {} is not in valid format. Correct format: rbga(1,1,1,1)'.format(self.value)
+                logger.error(mess)
+                return 400, mess
+            return self.validate_basic()
+
+    class TraceLineColor(Color):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+        def save(self, figure):
+            figure.child(self.name).line_color.set(self.value)
+            return 201, 'Created'
+
+    class TraceMarkerColor(Color):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+        def save(self, figure):
+            figure.child(self.name).marker_color.set(self.value)
+            return 201, 'Created'
+
+    class TraceLineWidth(Parameter):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+
+        def save(self, figure):
+            figure.child(self.name).line_width.set(self.value)
+            return 201, 'Created'
+
+    class TraceMarkerSize(Parameter):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+
+        def save(self, figure):
+            figure.child('trace{}'.format(self.params['trace_id'])).marker_size.set(self.value)
+            return 201, 'Created'
+
+    def validate(self):
+        child = self.name.split('.')[1]
+        classes = {
+            'name': self.TraceName,
+            'line_color': self.TraceLineColor,
+            'line_width': self.TraceLineWidth,
+            'marker_color': self.TraceMarkerColor,
+            'marker_size': self.TraceMarkerSize,
+        }
+
+        ans = classes.get(child, None)(name=self.name, params=self.params, value=self.value).validate()
+        if ans[0] == 200:
+            return self.validate_basic()
+        else:
+            return ans[0], ans[1]
 
     def save(self, figure):
-        # Удаление всех прошлых ключей trace
-        try:
-            figure_children = figure.val()
-            for i in figure_children.keys():
-                if 'trace' in i:
-                    figure.child(i).rem()
-        except AttributeError:
-            # значит, таких ключей нет
-            pass
-        traces = self.value.split(',')
-        for i in range(0, len(traces)):
-            figure.child('trace{}'.format(i)).name.set(traces[i])
-            figure.child('trace{}'.format(i)).name_id.set(traces[i])
+        figure.child(self.name).set(self.value)
         return 201, 'Created'
 
 
-class Trace_id(Parameter):
+class TraceId(Parameter):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.name = 'trace_id'
 
     def validate(self):
         uuid = self.params.get('uuid', 'default')
@@ -212,7 +277,7 @@ class Trace_id(Parameter):
         return 200, 'OK'
 
 
-class Figure_id(Parameter):
+class FigureId(Parameter):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.name = 'figure_id'
@@ -231,81 +296,16 @@ class Figure_id(Parameter):
 
 
 
-class Color1(Parameter):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.name = 'line_color'
 
-    def validate_format(self):
-        if isinstance(self.value, str):
-            if not len(self.value) >= 13 or not self.value[:5] == 'rgba(' or not self.value[-1] == ')':
-                return 0
-            value_splited = self.value[5:-1].split(',')
-
-            try:
-                {'r': int(value_splited[0]), 'g': int(value_splited[1]), 'b': int(value_splited[2]),
-                 'a': int(value_splited[3])}
-            except Exception:
-                return 0
-        else:
-            return 0
-        return 1
-
-    def validate(self):
-        if not self.validate_format():
-            mess = 'Color {} is not in valid format. Correct format: rbga(1,1,1,1)'.format(self.value)
-            logger.error(mess)
-            return 400, mess
-        return self.validate_basic()
-
-    def save(self, figure):
-        figure.child('trace{}'.format(self.params['trace_id'])).line_color.set(self.value)
-        return 201, 'Created'
-
-class Color2(Color1):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.name = 'marker_color'
-
-    def save(self, figure):
-        figure.child('trace{}'.format(self.params['trace_id'])).marker_color.set(self.value)
-        return 201, 'Created'
-
-
-class Size1(Parameter):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.name = 'line_color'
-
-    def save(self, figure):
-        figure.child('trace{}'.format(self.params['trace_id'])).line_width.set(self.value)
-        return 201, 'Created'
-
-
-class Size2(Size1):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.name = 'line_color'
-
-    def save(self, figure):
-        figure.child('trace{}'.format(self.params['trace_id'])).marker_size.set(self.value)
-        return 201, 'Created'
 
 
 def match_class(**kwargs):
     name = kwargs.get('name')
-    params = kwargs.get('params')
 
     exact_match = {'uuid': (ParameterTemplate, dict(type=str)),
-                   'figure_id': (Figure_id, {}),
+                   'figure_id': (FigureId, {}),
                    'stream': (Stream, {}),
                    'graph_type': (ParameterTemplate, dict(selector_options=['trajectory', 'bar', 'scatter'])),
-                   'traces': (Traces, dict(params=params)),
-                   'trace_id': (Trace_id, dict(type=int)),
-                   'line_color': (Color1, {}),
-                   'line_width': (Size1, dict(type=int)),
-                   'marker_color': (Color2, {}),
-                   'marker_size': (Size2, dict(type=int))
                    }
 
     ClassName, add_params = exact_match.get(name, (None, kwargs))
@@ -313,7 +313,7 @@ def match_class(**kwargs):
         if add_params:
             kwargs = {**kwargs, **add_params}
         return ClassName(**kwargs)
-    elif 'traces' in name:
+    elif 'trace' in name:
         return Traces(**kwargs)
     else:
         tmp = BaseContainer

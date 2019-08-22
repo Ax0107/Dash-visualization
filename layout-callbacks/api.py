@@ -60,7 +60,7 @@ def figure_optional():
 @server.route('/dash/api')
 def figure_work():
     if request.args:
-        logger.debug('Params: ' + str(dict(request.args)))
+        logger.info('Params: ' + str(dict(request.args)))
         uuid = request.args.get('uuid', 'default').lower()
         figure_id = request.args.get('figure_id')
         if figure_id is not None:
@@ -68,12 +68,12 @@ def figure_work():
         else:
             logger.info('Figure id is not selected. Giving id.')
             figures = RWrapper(uuid).dash.get_children('figure')
+            names = [i.__name__ for i in figures]
             if len(figures):
                 fig_count = list(map(lambda i: int(re.search(r'\d+$', i).group()) if re.search(r'\d+$', i) else 0,
                                      figures.pop().__name__))
                 i = next(filterfalse(set(fig_count).__contains__, count(1)))
 
-                names = [i.__name__ for i in figures]
                 while 'dash.figure{}'.format(i) in names:
                     logger.debug('Figure id {} is already exist. Giving another id.'.format(i))
                     i += 1
@@ -91,7 +91,7 @@ def figure_work():
 
 def pparse_params(uuid, figure_id, params, method=None):
     if method == 'work' or method is None:
-        ans = parse_params(params, uuid=uuid, figure_id=figure_id, required_list=['stream', 'graph_type', 'traces'])
+        ans = parse_params(params, uuid=uuid, figure_id=figure_id, required_list=['graph_type', 'stream'])
     elif method == 'optional':
         ans = parse_params(params, uuid=uuid, figure_id=figure_id,
                            required_list=['figure_id', 'uuid', 'trace_id', 'line_color',
