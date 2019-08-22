@@ -44,19 +44,6 @@ def figure_deletion():
             return redirect("/loading/")
 
 
-@server.route('/dash/api/optional')
-def figure_optional():
-    if request.args:
-        uuid = request.args.get('uuid', 'default').lower()
-        figure_id = request.args.get('figure_id')
-        if figure_id is not None:
-            return pparse_params(uuid, figure_id, dict(request.args), method='optional')
-        else:
-            return resp(400, 'Figure id is None.')
-    else:
-        return redirect("/loading/")
-
-
 @server.route('/dash/api')
 def figure_work():
     if request.args:
@@ -89,13 +76,8 @@ def figure_work():
         return redirect("/loading/")
 
 
-def pparse_params(uuid, figure_id, params, method=None):
-    if method == 'work' or method is None:
-        ans = parse_params(params, uuid=uuid, figure_id=figure_id, required_list=['graph_type', 'stream'])
-    elif method == 'optional':
-        ans = parse_params(params, uuid=uuid, figure_id=figure_id,
-                           required_list=['figure_id', 'uuid', 'trace_id', 'line_color',
-                                          'line_width', 'marker_color', 'marker_size'])
+def pparse_params(uuid, figure_id, params):
+    ans = parse_params(params, uuid=uuid, figure_id=figure_id, required_list=['graph_type', 'stream'])
     if ans.code == 200:
         logger.info('Params are valid. Saving to Redis...')
         save_params(params, uuid, figure_id)
