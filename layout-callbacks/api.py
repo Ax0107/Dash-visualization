@@ -77,7 +77,7 @@ def figure_work():
 
 
 def pparse_params(uuid, figure_id, params):
-    ans = parse_params(params, uuid=uuid, figure_id=figure_id, required_list=['graph_type', 'stream'])
+    ans = parse_params(params, uuid=uuid, figure_id=figure_id, required_list=[])
     if ans.code == 200:
         logger.info('Params are valid. Saving to Redis...')
         save_params(params, uuid, figure_id)

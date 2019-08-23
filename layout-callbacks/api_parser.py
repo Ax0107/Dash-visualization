@@ -109,8 +109,10 @@ def parse_params(params, uuid='default', figure_id=1, required_list=[], **kwargs
     params['uuid'] = uuid
     params['figure_id'] = figure_id
 
-    # if params.get('graph_type', '').lower() == 'trajectory':
-    #   required_list.append('stream')
+    if params.get('graph_type', '').lower() == 'trajectory':
+        required_list.append('stream')
+    if params.get('stream') is not None:
+        required_list.append('graph_type')
 
     for key in params.keys():
         responses.push(match_class(name=key, params=params, value=params[key], **kwargs).validate())
@@ -166,8 +168,20 @@ class Traces(Parameter):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
+    def delete_traces(self):
+        # Deleting traces keys
+        try:
+            figure = RWrapper(self.params['uuid']).child('figure{}'.format(self.params['figure_id']))
+            figure_children = figure.val()
+            for i in figure_children.keys():
+                if 'trace' in i:
+                    figure.child(i).rem()
+        except AttributeError:
+            # значит, таких ключей нет
+            pass
+
     def check_trace(self, name):
-        if RWrapper().search('*{}.name*'.format(name)) == []:
+        if RWrapper().search('{}:dash.figure{}.{}.name*'.format(self.params['uuid'], self.params['figure_id'], name)) == []:
             return 0
         return 1
 
@@ -243,7 +257,13 @@ class Traces(Parameter):
             return 201, 'Created'
 
     def validate(self):
-        child = self.name.split('.')[1]
+        if not self.params.get('traces_deleted', True):
+            self.delete_traces()
+
+        try:
+            child = self.name.split('.')[1]
+        except IndexError:
+            return 400, 'Invalid trace child'
         classes = {
             'name': self.TraceName,
             'line_color': self.TraceLineColor,
@@ -251,8 +271,13 @@ class Traces(Parameter):
             'marker_color': self.TraceMarkerColor,
             'marker_size': self.TraceMarkerSize,
         }
+        if self.name.split('.')[0]+'.name' not in self.params and not self.check_trace(self.name.split('.')[0]):
+            return 400, 'You have to set up {}.name firstly.'.format(self.name.split('.')[0])
 
-        ans = classes.get(child, None)(name=self.name, params=self.params, value=self.value).validate()
+        try:
+            ans = classes.get(child, None)(name=self.name, params=self.params, value=self.value).validate()
+        except:
+            return 400, 'Invalid trace parameter'
         if ans[0] == 200:
             return self.validate_basic()
         else:
@@ -272,8 +297,9 @@ class TraceId(Parameter):
         if uuid != 'default' and RWrapper(uuid).search('*figure{}.trace{}*'.format(
                                                         self.params['figure_id'],
                                                         self.value)) == []:
-            return 400, 'Trace with id {} for figure{} does not exist.'.format(self.value,
-                                                                               self.params['figure_id'])
+            return 400, 'Trace with id {} for figure{} for uuid {} does not exist.'.format(self.value,
+                                                                                           self.params['figure_id'],
+                                                                                           uuid)
         return 200, 'OK'
 
 
@@ -281,16 +307,15 @@ class FigureId(Parameter):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.name = 'figure_id'
-        if len(self.params) > 1 and ('stream' in self.params or 'traces' in self.params or
-                                     'graph_type' in self.params):
-            self.is_creation = True
-        else:
-            self.is_creation = False
 
     def validate(self):
-        if not self.is_creation:
+        is_creation = False
+        if 'graph_type' in self.params or 'stream' in self.params:
+            is_creation = True
+
+        if not is_creation:
             uuid = self.params.get('uuid', 'default')
-            if uuid != 'default' and RWrapper(uuid).search('*figure{}*'.format(self.value)) == []:
+            if RWrapper(uuid).search('{}:dash.figure{}*'.format(uuid, self.value)) == []:
                 return 400, 'Figure with id {} for uuid {} does not exist'.format(self.value, self.params['uuid'])
         return 200, 'OK'
 
@@ -309,11 +334,15 @@ def match_class(**kwargs):
                    }
 
     ClassName, add_params = exact_match.get(name, (None, kwargs))
+    traces_deleted = False
     if ClassName:
         if add_params:
             kwargs = {**kwargs, **add_params}
         return ClassName(**kwargs)
-    elif 'trace' in name:
+    elif 'trace' in name and name != 'traces':
+        kwargs['traces_deleted'] = traces_deleted
+        if not traces_deleted:
+            traces_deleted = True
         return Traces(**kwargs)
     else:
         tmp = BaseContainer
