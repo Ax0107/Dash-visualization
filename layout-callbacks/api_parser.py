@@ -142,7 +142,7 @@ def save_params(params, uuid='default', figure_id=1, **kwargs):
 
 
 class ParameterTemplate(Parameter):
-    def __init__(self,**kwargs):
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
 
@@ -189,13 +189,18 @@ class Traces(Parameter):
         def __init__(self, **kwargs):
             super().__init__(**kwargs)
         def validate(self):
-            stream, _ = Storage(id='S_{}:Trajectory:Rlist'.format(self.params.get('stream')),
-                                preload=False).call(start=0, end=1)
+            stream_name = str(RWrapper(self.params['uuid']).dash.child('figure{}'.format(self.params['figure_id'])).stream.val())
+            if self.params.get('stream') is None:
+                stream, _ = Storage(id=stream_name,
+                                    preload=False).call(start=0, end=1)
+            else:
+                stream, _ = Storage(id='S_{}:Trajectory:Rlist'.format(self.params.get('stream')),
+                                    preload=False).call(start=0, end=1)
             columns = list(pd.DataFrame(stream).columns)
             traces = self.value.split(',')
             for trace in traces:
                 if trace not in columns:
-                    mess = 'Stream {} does not have name {}.'.format(self.params.get('stream'), trace)
+                    mess = 'Stream {} does not have name {}.'.format(self.params.get('stream', stream_name), trace)
                     logger.error(mess)
                     return 400, mess
             return self.validate_basic()
@@ -261,7 +266,7 @@ class Traces(Parameter):
             self.delete_traces()
 
         try:
-            child = self.name.split('.')[1]
+            child = str(self.name).split('.')[1]
         except IndexError:
             return 400, 'Invalid trace child'
         classes = {
