@@ -189,7 +189,10 @@ class Traces(Parameter):
         def __init__(self, **kwargs):
             super().__init__(**kwargs)
         def validate(self):
-            stream_name = str(RWrapper(self.params['uuid']).dash.child('figure{}'.format(self.params['figure_id'])).stream.val())
+            try:
+                stream_name = str(RWrapper(self.params['uuid']).dash.child('figure{}'.format(self.params['figure_id'])).stream.val())
+            except:
+                stream_name = None
             if self.params.get('stream') is None:
                 stream, _ = Storage(id=stream_name,
                                     preload=False).call(start=0, end=1)
@@ -265,11 +268,12 @@ class Traces(Parameter):
     def validate(self):
         if not self.params.get('traces_deleted', True):
             self.delete_traces()
-
+        print(self.name)
         try:
             child = str(self.name).split('.')[1]
         except IndexError:
             return 400, 'Invalid trace child'
+
         classes = {
             'name': self.TraceName,
             'line_color': self.TraceLineColor,
@@ -292,21 +296,6 @@ class Traces(Parameter):
     def save(self, figure):
         figure.child(self.name).set(self.value)
         return 201, 'Created'
-
-
-class TraceId(Parameter):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-    def validate(self):
-        uuid = self.params.get('uuid', 'default')
-        if uuid != 'default' and RWrapper(uuid).search('*figure{}.trace{}*'.format(
-                                                        self.params['figure_id'],
-                                                        self.value)) == []:
-            return 400, 'Trace with id {} for figure{} for uuid {} does not exist.'.format(self.value,
-                                                                                           self.params['figure_id'],
-                                                                                           uuid)
-        return 200, 'OK'
 
 
 class FigureId(Parameter):
