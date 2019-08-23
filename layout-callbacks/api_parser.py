@@ -200,7 +200,8 @@ class Traces(Parameter):
             traces = self.value.split(',')
             for trace in traces:
                 if trace not in columns:
-                    mess = 'Stream {} does not have name {}.'.format(self.params.get('stream', stream_name), trace)
+                    mess = 'Stream {} does not have name {}. (Stream names: {})'.format(
+                        self.params.get('stream', stream_name), trace, columns)
                     logger.error(mess)
                     return 400, mess
             return self.validate_basic()
