@@ -51,7 +51,7 @@ def figure_work():
         logger.info('Params: ' + str(dict(request.args)))
         uuid = request.args.get('uuid', 'default').lower()
 
-        # Check if data was changed 
+        # Check if data was changed
         new_params = str(dict(request.args))
         last_params = []
         if RWrapper(uuid).search('{}:last_params*'.format(uuid)) != []:

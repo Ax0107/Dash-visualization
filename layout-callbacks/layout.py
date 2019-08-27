@@ -147,6 +147,9 @@ def settings_panel():
                                 # режим линии (маркер, маркеры+линия, линия)
                                 card('card-line-type-selector', "Тип линии", dropdown('mode', is_global=True))
                             ]),
+                            dbc.CardFooter([
+                                dbc.Button('Сбросить', id='btn-reset', color='secondary',
+                                           style={"width": "100%", 'margin-top': '10px'})]),
                         ])
                     ], id='global-edit-block'),
                     dbc.Button('Сохранить', id='btn-save',
