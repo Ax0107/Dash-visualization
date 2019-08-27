@@ -315,10 +315,6 @@ class FigureId(Parameter):
         return 200, 'OK'
 
 
-
-
-
-
 def match_class(**kwargs):
     name = kwargs.get('name')
 

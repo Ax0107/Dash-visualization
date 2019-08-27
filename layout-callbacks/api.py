@@ -47,8 +47,19 @@ def figure_deletion():
 @server.route('/dash/api')
 def figure_work():
     if request.args:
+
         logger.info('Params: ' + str(dict(request.args)))
         uuid = request.args.get('uuid', 'default').lower()
+
+        # Check if data was changed 
+        new_params = str(dict(request.args))
+        last_params = []
+        if RWrapper(uuid).search('{}:last_params*'.format(uuid)) != []:
+            last_params = RWrapper(uuid).last_params.val()
+        print(last_params, new_params)
+        if last_params == new_params:
+            return redirect("/loading/")
+
         figure_id = request.args.get('figure_id')
         if figure_id is not None:
             return pparse_params(uuid, figure_id, dict(request.args))
@@ -80,6 +91,7 @@ def pparse_params(uuid, figure_id, params):
     ans = parse_params(params, uuid=uuid, figure_id=figure_id, required_list=[])
     if ans.code == 200:
         logger.info('Params are valid. Saving to Redis...')
+        RWrapper(uuid).last_params.set(str(params))
         save_params(params, uuid, figure_id)
         logger.info('OK')
         return redirect("/loading/")
