@@ -391,7 +391,11 @@ def load_settings_for_figure_block(figure):
         logger.debug('Loaded figure settings:'+str(figure_settings))
         stream_options = update_stream()
         stream_value = figure_settings.get('stream')
-        traces = figure_settings.get('traces', [])
+        traces = []
+        for i in figure_settings.keys():
+            if 'trace' in i:
+                traces.append(figure_settings.get(i).get('name'))
+        print(traces)
         graph_type = figure_settings.get('graph_type', 'scatter').lower()
         return {}, graph_type, stream_options, stream_value, traces, None
     return {'display': 'none'}, 'scatter', update_stream(), None, None, None

@@ -314,6 +314,16 @@ class FigureId(Parameter):
                 return 400, 'Figure with id {} for uuid {} does not exist'.format(self.value, self.params['uuid'])
         return 200, 'OK'
 
+class Untracked(Parameter):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.name = 'figure_id'
+
+    def validate(self):
+        return 200, 'OK'
+
+    def save(self, figure):
+        return 200, 'OK'
 
 def match_class(**kwargs):
     name = kwargs.get('name')
@@ -336,13 +346,11 @@ def match_class(**kwargs):
             traces_deleted = True
         return Traces(**kwargs)
     else:
-        tmp = BaseContainer
 
-        def tmp_validate():
-            return 200, 'Untracked variable: {}'.format(name)
+        logger.info('Untracked variable: {}'.format(name))
+        return Untracked(**kwargs)
 
-        setattr(tmp, 'validate', tmp_validate)
-        return tmp
+
 
 
 
