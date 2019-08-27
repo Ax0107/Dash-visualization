@@ -56,7 +56,7 @@ def figure_work():
         last_params = []
         if RWrapper(uuid).search('{}:last_params*'.format(uuid)) != []:
             last_params = RWrapper(uuid).last_params.val()
-        print(last_params, new_params)
+        # print(last_params, new_params)
         if last_params == new_params:
             return redirect("/loading/")
 
@@ -66,7 +66,7 @@ def figure_work():
         else:
             logger.info('Figure id is not selected. Giving id.')
             figures = RWrapper(uuid).dash.get_children('figure')
-            names = [i.__name__ for i in figures]
+            names = [i.__name__ for i in figures.copy()]
             if len(figures):
                 fig_count = list(map(lambda i: int(re.search(r'\d+$', i).group()) if re.search(r'\d+$', i) else 0,
                                      figures.pop().__name__))

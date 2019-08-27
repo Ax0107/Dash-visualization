@@ -268,7 +268,7 @@ class Traces(Parameter):
     def validate(self):
         if not self.params.get('traces_deleted', True):
             self.delete_traces()
-        print(self.name)
+        # print(self.name)
         try:
             child = str(self.name).split('.')[1]
         except IndexError:
