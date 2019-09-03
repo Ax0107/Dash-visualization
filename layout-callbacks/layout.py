@@ -77,17 +77,33 @@ def file_uploarer():
 def table():
     return html.Div(children=[
         file_uploarer(),
-        dash_table.DataTable(id='table', page_action='custom', page_current=0),
-        dcc.Input(id='page-size', type='number', value='5', style={'display': 'none'}),
-        dbc.Button('Сохранить', id='btn-save-table', color='primary'),
-        html.Div(id='table-buttons', children=[]),
+        dash_table.DataTable(id='table', page_action='custom', page_current=0, editable=True),
         html.Div(id='div-out', style={'display': 'none'})
         ])
 
 
+def table_info():
+    return dbc.Card([
+        dbc.CardBody([
+            html.H4('Имя файла:'),
+            html.A('', id='table-filename'),
+            html.Hr(),
+            html.H4('Размер страницы:'),
+            dcc.Input(id='page-size', type='number', value='5', style={'display': 'none'}),
+            dbc.Button('Сохранить', id='btn-save-table', color='primary', style={'width': '100%'}),
+            dcc.Checklist(id='table-save-all-checkbox',
+                options=[
+                    {'label': 'Сохрагить полностью', 'value': 'save-all'}]),
+            html.Div(id='table-buttons', children=[]),
+        ])
+    ])
+
 def layout():
     return html.Div([
-        table(),
+        dbc.Row([
+            dbc.Col([table()], width={"size": 8}),
+            dbc.Col([table_info()], width={"size": 4}),
+        ]),
         dbc.Button('Добавить новый график', id='btn-create-graph', color='primary', style={'width': "100%"}),
         dcc.Dropdown(id='graph-type',
                      options=[{'label': 'Scatter', 'value': 'scatter'},
@@ -138,7 +154,7 @@ def build_download_button(uri=None):
             action='/download/'+uri,
             method="get",
             children=[
-                dbc.Button('Загрузить', type="submit"),
+               html.Button('Загрузить', type='submit'),
             ]
         )
         return button

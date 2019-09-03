@@ -55,7 +55,7 @@ def get_file(list_of_contents, list_of_names):
 # # # # # # # # Функции для отображения графиков # # # # # # # #
 
 
-def table_load_selected(data, selected_rows):
+def table_load_selected(selected_rows, data):
     """
     Функция выводит в div-out данные о выделенных столбцах, дабы другие фунции могли
                                                                 использовать эти данные
@@ -186,6 +186,35 @@ def change_style_of_graph(settings, figure):
                 })
     return figure
 
+def denormalize_csv(df):
+    data = []
+    keys = list(df.to_dict('records')[0].keys())
+    key_string = 'values'
+    for i in range(len(df.to_dict('records'))):
+        values_string = ''
+        for k in keys:
+            value = df.to_dict('records')[i][k]
+            values_string += value + ";"
+        data.append({key_string: values_string})
+    return pd.DataFrame(data)
+
+def normalize_csv(df):
+    # тут идут преобразования данных из таблицы из {'1;2': '1;2'} в {'1': '1', '2': '2'}
+    #                                                                   из-за кривости считывания формата
+    table_data = []
+    for i in range(0, len(df.to_dict('records'))):
+        keys = list(df.to_dict('records')[i].keys())
+        a = {}
+        data = df.to_dict('records')[i][keys[0]]
+        if not isinstance(data, int):
+            data = data.split(';')
+            for k in range(0, len(keys[0].split(';'))):
+                a.update({keys[0].split(';')[k]: data[k]})
+        else:
+            a.update({keys[0]: data})
+        table_data.append(a)
+    return pd.DataFrame(table_data)
+
 
 def show_table(p_size, page, list_of_contents, list_of_names):
     """
@@ -200,26 +229,10 @@ def show_table(p_size, page, list_of_contents, list_of_names):
         # парсинг файла
         df = get_file(list_of_contents, list_of_names)
         df = df.iloc[page * int(p_size):(page + 1) * int(p_size)]
-
-        table_data = []
         if 'csv' in list_of_names[0]:
-            # тут идут преобразования данных из таблицы из {'1;2': '1;2'} в {'1': '1', '2': '2'}
-            #                                                                   из-за кривости считывания
-            for i in range(0, len(df.to_dict('records'))):
-                keys = list(df.to_dict('records')[i].keys())
-                a = {}
-                data = df.to_dict('records')[i][keys[0]]
-                if not isinstance(data, int):
-                    data = data.split(';')
-                    for k in range(0, len(keys[0].split(';'))):
-                        a.update({keys[0].split(';')[k]: data[k]})
-                else:
-                    a.update({keys[0]: data})
-                table_data.append(a)
-        else:
-            return [{"name": i, "id": i} for i in df.columns], df.to_dict('records')
-        return [{"name": i, "id": i} for i in df.columns[0].split(';')], table_data
-    return [], []
+            df = normalize_csv(df)
+        return [{"name": i, "id": i} for i in df.columns], df.to_dict('records'), list_of_names[0]
+    return [], [], ''
 
 
 def show_edit_block(value):
@@ -287,12 +300,23 @@ def set_created_graphs(n_clicks, graph_type, created_graphs):
     return created_graphs
 
 
-def download_table(n, df):
+def download_table(n, df, save_options, file_content, file_name, p_size, page):
     if df is None or not n:
         return [layout.build_download_button()]
+    df = pd.DataFrame(df)
+    if save_options and 'save-all' in save_options:
+        df_file = get_file(file_content, file_name)
+        if 'csv' in file_name:
+            df = denormalize_csv(df)
+            for j in range(int(p_size)):
+                df_file.iloc[int(p_size)*int(page)+j] = df.to_dict('records')[j]['values']
+        else:
+            for j in range(int(p_size)):
+                df_file.iloc[int(p_size)*int(page)+j] = df.to_dict('records')[j]
+        df = df_file
     filename = f"{uuid.uuid1()}"
     path = f".\\files\\{filename}.csv"
-    pd.DataFrame(df).to_csv(path, sep=';', index=None, header=True)
+    df.to_csv(path, sep=';', index=None, header=True)
     return [layout.build_download_button(path)]
 
 
@@ -343,20 +367,26 @@ class Table(CallbackObj):
                Output('page-size', 'style')],
               [Input('upload-data', 'contents')]), show_page_slider))
         self.val.append(
-            (([Output('table', 'columns'), Output('table', 'data')],
+            (([Output('table', 'columns'), Output('table', 'data'), Output('table-filename', 'children')],
               [Input('page-size', 'value'),
                Input('table', "page_current"),
                Input('upload-data', 'contents')],
               [State('upload-data', 'filename')]), show_table))
         self.val.append(
             (([Output('div-out', 'children')],
-             [Input('table', 'data'),
-              Input('table', 'selected_cells')]),
+             [Input('table', 'selected_cells')],
+             [State('table', 'data')]),
              table_load_selected))
         self.val.append(
             ((Output('table-buttons', 'children'),
              [Input('btn-save-table', 'n_clicks')],
-             [State('table', 'data')]), download_table))
+             [State('table', 'data'),
+              State('table-save-all-checkbox', 'value'),
+              State('upload-data', 'contents'),
+              State('upload-data', 'filename'),
+              State('page-size', 'value'),
+              State('table', 'page_current'),
+              ]), download_table))
 
 
 class ScatterTable(CallbackObj):
