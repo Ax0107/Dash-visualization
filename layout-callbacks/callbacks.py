@@ -216,7 +216,7 @@ def normalize_csv(df):
     return pd.DataFrame(table_data)
 
 
-def show_table(p_size, page, list_of_contents, list_of_names):
+def show_table(p_size, page, list_of_contents, n_clicks, value, existing_columns, existing_data, list_of_names):
     """
     Отображает таблицу из CSV файла
     :param p_size: количество строк на странице (получается из input p-size)
@@ -225,7 +225,13 @@ def show_table(p_size, page, list_of_contents, list_of_names):
     :param list_of_names: имя файла
     :return: table data
     """
-    if list_of_names is not None or dash.callback_context.triggered == 'table.page_current':
+    if n_clicks and dash.callback_context.triggered[0]['prop_id'] == 'btn-add-column.n_clicks':
+        existing_columns.append({
+            'id': str(len(existing_columns)+1), 'name': value,
+            'deletable': True
+        })
+        return existing_columns, existing_data, list_of_names[0]
+    if list_of_names is not None or (dash.callback_context.triggered[0]['prop_id'] == 'table.page_current' and page):
         # парсинг файла
         df = get_file(list_of_contents, list_of_names)
         df = df.iloc[page * int(p_size):(page + 1) * int(p_size)]
@@ -370,8 +376,12 @@ class Table(CallbackObj):
             (([Output('table', 'columns'), Output('table', 'data'), Output('table-filename', 'children')],
               [Input('page-size', 'value'),
                Input('table', "page_current"),
-               Input('upload-data', 'contents')],
-              [State('upload-data', 'filename')]), show_table))
+               Input('upload-data', 'contents'),
+               Input('btn-add-column', 'n_clicks')],
+              [State('new-column-name', 'value'),
+               State('table', 'columns'),
+               State('table', 'data'),
+               State('upload-data', 'filename')]), show_table))
         self.val.append(
             (([Output('div-out', 'children')],
              [Input('table', 'selected_cells')],
@@ -387,7 +397,6 @@ class Table(CallbackObj):
               State('page-size', 'value'),
               State('table', 'page_current'),
               ]), download_table))
-
 
 class ScatterTable(CallbackObj):
     def __init__(self, graph_id):

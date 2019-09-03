@@ -90,6 +90,9 @@ def table_info():
             html.Hr(),
             html.H4('Размер страницы:'),
             dcc.Input(id='page-size', type='number', value='5', style={'display': 'none'}),
+            html.Hr(),
+            dcc.Input(id='new-column-name', placeholder='Введите имя нового столбца...', value=''),
+            html.Button('Добавить новый столбец', id='btn-add-column', n_clicks=0),
             dbc.Button('Сохранить', id='btn-save-table', color='primary', style={'width': '100%'}),
             dcc.Checklist(id='table-save-all-checkbox',
                 options=[
