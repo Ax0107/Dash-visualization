@@ -1,9 +1,13 @@
 from dash.dependencies import Input, Output, State
+import dash_html_components as html
 import pandas as pd
 import plotly.tools as tls
 import base64
 import io
+import os
+import urllib
 import dash
+import uuid
 from ast import literal_eval
 import layout
 
@@ -35,12 +39,16 @@ def get_file(list_of_contents, list_of_names):
     :param list_of_names: имя файла
     :return: pandas data
     """
+
     content_type, content_string = list_of_contents[0].split(',')
     decoded = base64.b64decode(content_string)
+
     if 'csv' in list_of_names[0]:
-        df = pd.read_csv(
-            io.StringIO(decoded.decode('utf-8')))
-        return df
+        return pd.read_csv(
+               io.StringIO(decoded.decode('utf-8')))
+    elif 'xls' in list_of_names[0]:
+        return pd.read_excel(io.BytesIO(decoded))
+
     return None
 
 
@@ -194,20 +202,22 @@ def show_table(p_size, page, list_of_contents, list_of_names):
         df = df.iloc[page * int(p_size):(page + 1) * int(p_size)]
 
         table_data = []
-        # тут идут преобразования данных из таблицы из {'1;2': '1;2'} в {'1': '1', '2': '2'}
-        #                                                                   из-за кривости считывания
-        for i in range(0, len(df.to_dict('records'))):
-            keys = list(df.to_dict('records')[i].keys())
-            a = {}
-            data = df.to_dict('records')[i][keys[0]]
-            if not isinstance(data, int):
-                data = data.split(';')
-                for k in range(0, len(keys[0].split(';'))):
-                    a.update({keys[0].split(';')[k]: data[k]})
-            else:
-                a.update({keys[0]: data})
-            table_data.append(a)
-
+        if 'csv' in list_of_names[0]:
+            # тут идут преобразования данных из таблицы из {'1;2': '1;2'} в {'1': '1', '2': '2'}
+            #                                                                   из-за кривости считывания
+            for i in range(0, len(df.to_dict('records'))):
+                keys = list(df.to_dict('records')[i].keys())
+                a = {}
+                data = df.to_dict('records')[i][keys[0]]
+                if not isinstance(data, int):
+                    data = data.split(';')
+                    for k in range(0, len(keys[0].split(';'))):
+                        a.update({keys[0].split(';')[k]: data[k]})
+                else:
+                    a.update({keys[0]: data})
+                table_data.append(a)
+        else:
+            return [{"name": i, "id": i} for i in df.columns], df.to_dict('records')
         return [{"name": i, "id": i} for i in df.columns[0].split(';')], table_data
     return [], []
 
@@ -276,6 +286,16 @@ def set_created_graphs(n_clicks, graph_type, created_graphs):
         return str({graph_type: 1})
     return created_graphs
 
+
+def download_table(n, df):
+    if df is None or not n:
+        return [layout.build_download_button()]
+    filename = f"{uuid.uuid1()}"
+    path = f".\\files\\{filename}.csv"
+    pd.DataFrame(df).to_csv(path, sep=';', index=None, header=True)
+    return [layout.build_download_button(path)]
+
+
 # # # # # # # # Классы Callback # # # # # # # #
 
 
@@ -333,6 +353,10 @@ class Table(CallbackObj):
              [Input('table', 'data'),
               Input('table', 'selected_cells')]),
              table_load_selected))
+        self.val.append(
+            ((Output('table-buttons', 'children'),
+             [Input('btn-save-table', 'n_clicks')],
+             [State('table', 'data')]), download_table))
 
 
 class ScatterTable(CallbackObj):

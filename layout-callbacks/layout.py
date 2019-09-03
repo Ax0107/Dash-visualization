@@ -79,6 +79,8 @@ def table():
         file_uploarer(),
         dash_table.DataTable(id='table', page_action='custom', page_current=0),
         dcc.Input(id='page-size', type='number', value='5', style={'display': 'none'}),
+        dbc.Button('Сохранить', id='btn-save-table', color='primary'),
+        html.Div(id='table-buttons', children=[]),
         html.Div(id='div-out', style={'display': 'none'})
         ])
 
@@ -116,27 +118,6 @@ def work_card(global_id):
                     graph_table(global_id)
                 ]),
             ]),
-            dbc.CardFooter([
-                dbc.Button('Открыть/закрыть изменение стилей', id='btn-open-style-{}'.format(global_id),
-                           color="primary", style={"width": "100%"}),
-                html.Div(id='graph-edit-{}'.format(global_id), style={'display': 'none'}, children=[
-                            dropdown('line', global_id),
-                            dbc.Row([
-                                # Параметры для типа графика Scatter
-                                dbc.Col(html.Div([
-                                    color_picker('line-color', global_id),
-                                    param_input('line-width', global_id),
-                                ])),
-
-                                dbc.Col(html.Div([
-                                    color_picker('marker-color', global_id),
-                                    param_input('marker-size', global_id),
-                                ])),
-                            ]),
-                            # режим линии (маркер, маркеры+линия, линия)
-                            card("Тип линии", dropdown('mode', global_id))
-                ])
-            ])
     ])
 
     return cardd
@@ -148,4 +129,18 @@ def bar_table():
         html.Hr(),
         dcc.Graph(id='bar'),
     ])
+
+
+def build_download_button(uri=None):
+    """Generates a download button for the resource"""
+    if uri:
+        button = html.Form(
+            action='/download/'+uri,
+            method="get",
+            children=[
+                dbc.Button('Загрузить', type="submit"),
+            ]
+        )
+        return button
+
 

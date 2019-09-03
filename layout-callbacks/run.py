@@ -15,8 +15,13 @@ app.scripts.config.serve_locally = True
 
 app.layout = layout.layout
 
-functions = []
 
+@app.server.route('/download/<path:path>')
+def download_table(path):
+    return flask.send_from_directory('.\\', path, attachment_filename='table.csv', as_attachment=True, conditional=True)
+
+
+functions = []
 for opts, funcs in callbacks.Callbacks("BasicLayout", 0)():
     functions.append(app.callback(*opts)(funcs))
 for opts, funcs in callbacks.Callbacks("Table", 0)():
