@@ -68,7 +68,10 @@ def table_load_selected(selected_rows, data):
         for i in range(0, len(selected_rows)):
             row = selected_rows[i]['row']
             column = selected_rows[i]['column_id']
-            d.append({'column': selected_rows[i]['column'], 'row': row, 'data': data[row][column]})
+            try:
+                d.append({'column': selected_rows[i]['column'], 'row': row, 'data': data[row][column]})
+            except KeyError:
+                d.append({'column': selected_rows[i]['column'], 'row': row, 'data': None})
         return [str(d)]
     return ['']
 
@@ -110,17 +113,10 @@ def plot_bar_from_table(pointss, selected_bars, bar_color, bar_width, bar_type, 
     }, style
 
 
-def plot_scatter_from_table(pointss, selected_lines, line_color, line_width, marker_color, marker_size,
-                            lines_type, figure, line_selector_options):
+def plot_scatter_from_table(pointss, figure):
     """
     Рисует график из выделенных данных в CSV таблице
     :param pointss: точки, полученные из div-out
-    :param selected_lines: выделенные линии (в настройках)
-    :param line_color: цвет линии
-    :param line_width: ширина линии
-    :param marker_color: цвет маркеров
-    :param marker_size: размер маркеров
-    :param lines_type: тип линий на графике (маркеры/линии и т.д.)
     :param figure: фигура графика
     :param line_selector_options: линии, которые возможно выделить (для dropdown)
     :return: новая фигура графика
@@ -152,17 +148,8 @@ def plot_scatter_from_table(pointss, selected_lines, line_color, line_width, mar
             fig.append_trace({'y': points[v], 'type': 'scatter'}, 1, 1)
             line_selector_options.append({'label': v, 'value': v})
         fig['layout'].update(title='Graph')
-        style = {}
-        try:
-            line_color = line_color['hex']
-            marker_color = marker_color['hex']
-        except TypeError:
-            line_color = line_color
-            marker_color = marker_color
-        settings = {'traces': selected_lines, 'line': {'color': line_color, 'width': int(line_width)},
-                    'marker': {'color': marker_color, 'size': int(marker_size)}, 'mode': lines_type}
-        return change_style_of_graph(settings, fig), style, line_selector_options
-    return {}, {}, []
+        return fig
+    return {}
 
 
 def change_style_of_graph(settings, figure):
@@ -201,18 +188,23 @@ def denormalize_csv(df):
 def normalize_csv(df):
     # тут идут преобразования данных из таблицы из {'1;2': '1;2'} в {'1': '1', '2': '2'}
     #                                                                   из-за кривости считывания формата
+    # print('Normalizing data: ', end='')
     table_data = []
+    keys = list(df.to_dict('records')[0].keys())
+    splited_keys = keys[0].split(';')
     for i in range(0, len(df.to_dict('records'))):
-        keys = list(df.to_dict('records')[i].keys())
+        # if (len(df.to_dict('records'))//10) % (i+1) == 0:
+        #     print('*', end='')
         a = {}
         data = df.to_dict('records')[i][keys[0]]
-        if not isinstance(data, int):
+        if isinstance(data, str):
             data = data.split(';')
-            for k in range(0, len(keys[0].split(';'))):
-                a.update({keys[0].split(';')[k]: data[k]})
+            for k in range(0, len(splited_keys)):
+                a.update({splited_keys[k]: data[k]})
         else:
             a.update({keys[0]: data})
         table_data.append(a)
+    # print('\n')
     return pd.DataFrame(table_data)
 
 
@@ -312,14 +304,16 @@ def download_table(n, df, save_options, file_content, file_name, p_size, page):
     df = pd.DataFrame(df)
     if save_options and 'save-all' in save_options:
         df_file = get_file(file_content, file_name)
-        if 'csv' in file_name:
+        if 'csv' in file_name[0]:
             df = denormalize_csv(df)
             for j in range(int(p_size)):
                 df_file.iloc[int(p_size)*int(page)+j] = df.to_dict('records')[j]['values']
         else:
             for j in range(int(p_size)):
                 df_file.iloc[int(p_size)*int(page)+j] = df.to_dict('records')[j]
-        df = df_file
+        df = normalize_csv(df_file)
+
+    print(df.to_dict('records'))
     filename = f"{uuid.uuid1()}"
     path = f".\\files\\{filename}.csv"
     df.to_csv(path, sep=';', index=None, header=True)
@@ -403,22 +397,9 @@ class ScatterTable(CallbackObj):
         super().__init__()
         self.id = graph_id
         self.val.append(
-            ((Output('graph-edit-{}'.format(self.id), 'style'),
-              [Input('btn-open-style-{}'.format(self.id), 'n_clicks')]),
-             show_edit_block))
-        self.val.append(
-            (([Output('graph-{}'.format(self.id), 'figure'),
-               Output('graph-{}'.format(self.id), 'style'),
-               Output('line-selector-{}'.format(self.id), 'options')],
-              [Input('div-out', 'children'),
-               Input('line-selector-{}'.format(self.id), 'value'),
-               Input('line-color-picker-{}'.format(self.id), 'value'),
-               Input('line-width-{}'.format(self.id), 'value'),
-               Input('marker-color-picker-{}'.format(self.id), 'value'),
-               Input('marker-size-{}'.format(self.id), 'value'),
-               Input('lines-type-{}'.format(self.id), 'value')],
-              [State('graph-{}'.format(self.id), 'figure'),
-               State('line-selector-{}'.format(self.id), 'options')]), plot_scatter_from_table))
+            ((Output('graph-{}'.format(self.id), 'figure'),
+              [Input('div-out', 'children')],
+              [State('graph-{}'.format(self.id), 'figure')]), plot_scatter_from_table))
 
 
 class BarTable(CallbackObj):
