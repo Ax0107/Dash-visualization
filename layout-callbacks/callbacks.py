@@ -1,11 +1,8 @@
 from dash.dependencies import Input, Output, State
-import dash_html_components as html
 import pandas as pd
 import plotly.tools as tls
 import base64
 import io
-import os
-import urllib
 import dash
 import uuid
 from ast import literal_eval
@@ -63,6 +60,7 @@ def table_load_selected(selected_rows, data):
     :param selected_rows: выделенные клетки таблицы
     :return: children of div-out (строка(словарь с выделенными данными))
     """
+    print('SELECTED ROWS', selected_rows)
     if data and selected_rows:
         d = []
         for i in range(0, len(selected_rows)):
@@ -76,7 +74,7 @@ def table_load_selected(selected_rows, data):
     return ['']
 
 
-def plot_bar_from_table(pointss, selected_bars, bar_color, bar_width, bar_type, figure, bar_selector_options):
+def plot_bar_from_table(pointss, figure):
     """
     Рисует Bar из выделенных данных таблицы
     :param pointss: dict полученный из div-out (см. table_load_selected)
@@ -121,7 +119,7 @@ def plot_scatter_from_table(pointss, figure):
     :param line_selector_options: линии, которые возможно выделить (для dropdown)
     :return: новая фигура графика
     """
-
+    print('pointss:', pointss)
     if pointss:
         # Дальше идёт преобразование данных к нужному типу
         pointss = literal_eval(pointss)
@@ -152,26 +150,32 @@ def plot_scatter_from_table(pointss, figure):
     return {}
 
 
-def change_style_of_graph(settings, figure):
-    """
-    Меняет стиль графика
-    :param settings: новые значения настроек
-    :param figure: старые значения
-    :return: 
-    """
-    selected_lines = settings['traces']
-    if selected_lines:
-        for i in selected_lines:
-            try:
-                figure['data'][i]['mode'] = settings['mode']
-                figure['data'][i]['line'] = settings['line']
-                figure['data'][i]['marker'] = settings['marker']
-            except IndexError:
-                figure['data'][i].append({
-                    'line': settings['line'],
-                    'marker': settings['marker']
-                })
-    return figure
+def select_on_table_from_graph(points, table_data):
+    if points:
+        print(points)
+        print(table_data)
+        # d.append({'column': selected_rows[i]['column'], 'row': row, 'data': data[row][column]})
+        # {'points': [
+        # {'curveNumber': 0, 'pointNumber': 2, 'pointIndex': 2, 'x': 2, 'y': 2},
+        # {'curveNumber': 1, 'pointNumber': 2, 'pointIndex': 2, 'x': 2, 'y': 10},
+        # {'curveNumber': 2, 'pointNumber': 2, 'pointIndex': 2, 'x': 2, 'y': 2}]
+        table_points = []
+        possible_table_points = []
+        for i in range(len(points.get('points', 0))):
+            for it in range(len(table_data)):
+                keys = list(table_data[it].keys())
+                for jt in range(len(keys)):
+                    if str(points['points'][i]['y']) == table_data[it][keys[jt]]:
+                        if len(possible_table_points):
+                            if possible_table_points[-1]['column'] in [jt+1, jt-1] \
+                                    or possible_table_points[0]['row'] in [it+1, it-1]:
+                                table_points.append(({'column': jt, 'row': it, 'column_id': keys[jt]}))
+                                table_points.append(possible_table_points[0])
+                        possible_table_points.append({'column': jt, 'row': it, 'column_id': keys[jt]})
+                        break
+        return table_points
+    return []
+
 
 def denormalize_csv(df):
     data = []
@@ -185,27 +189,30 @@ def denormalize_csv(df):
         data.append({key_string: values_string})
     return pd.DataFrame(data)
 
+
 def normalize_csv(df):
     # тут идут преобразования данных из таблицы из {'1;2': '1;2'} в {'1': '1', '2': '2'}
     #                                                                   из-за кривости считывания формата
     # print('Normalizing data: ', end='')
-    table_data = []
-    keys = list(df.to_dict('records')[0].keys())
-    splited_keys = keys[0].split(';')
-    for i in range(0, len(df.to_dict('records'))):
-        # if (len(df.to_dict('records'))//10) % (i+1) == 0:
-        #     print('*', end='')
-        a = {}
-        data = df.to_dict('records')[i][keys[0]]
-        if isinstance(data, str):
-            data = data.split(';')
-            for k in range(0, len(splited_keys)):
-                a.update({splited_keys[k]: data[k]})
-        else:
-            a.update({keys[0]: data})
-        table_data.append(a)
-    # print('\n')
-    return pd.DataFrame(table_data)
+    if df.to_dict('records'):
+        table_data = []
+
+        keys = list(df.to_dict('records')[0].keys())
+        splited_keys = keys[0].split(';')
+        for i in range(0, len(df.to_dict('records'))):
+            # if (len(df.to_dict('records'))//10) % (i+1) == 0:
+            #     print('*', end='')
+            a = {}
+            data = df.to_dict('records')[i][keys[0]]
+            if isinstance(data, str):
+                data = data.split(';')
+                for k in range(0, len(splited_keys)):
+                    a.update({splited_keys[k]: data[k]})
+            else:
+                a.update({keys[0]: data})
+            table_data.append(a)
+        # print('\n')
+        return pd.DataFrame(table_data)
 
 
 def show_table(p_size, page, list_of_contents, n_clicks, value, existing_columns, existing_data, list_of_names):
@@ -392,6 +399,7 @@ class Table(CallbackObj):
               State('table', 'page_current'),
               ]), download_table))
 
+
 class ScatterTable(CallbackObj):
     def __init__(self, graph_id):
         super().__init__()
@@ -400,7 +408,10 @@ class ScatterTable(CallbackObj):
             ((Output('graph-{}'.format(self.id), 'figure'),
               [Input('div-out', 'children')],
               [State('graph-{}'.format(self.id), 'figure')]), plot_scatter_from_table))
-
+        self.val.append(
+            ((Output('table', 'selected_cells'),
+             [Input('graph-{}'.format(self.id), 'selectedData')],
+              [State('table', 'data')]), select_on_table_from_graph))
 
 class BarTable(CallbackObj):
     def __init__(self, graph_id):
@@ -411,15 +422,7 @@ class BarTable(CallbackObj):
               [Input('btn-open-style-{}'.format(self.id), 'n_clicks')]),
              show_edit_block))
         self.val.append(
-            (([Output('graph-{}'.format(self.id), 'figure'),
-               Output('graph-{}'.format(self.id), 'style'),
-               # Output('line-selector-{}'.format(self.id), 'options')
-               ],
-              [Input('div-out', 'children'),
-               Input('line-selector-{}'.format(self.id), 'value'),
-               Input('line-color-picker-{}'.format(self.id), 'value'),
-               Input('line-width-{}'.format(self.id), 'value'),
-               Input('lines-type-{}'.format(self.id), 'value')],
-              [State('graph-{}'.format(self.id), 'figure'),
-               State('line-selector-{}'.format(self.id), 'options')]), plot_bar_from_table))
+            ((Output('graph-{}'.format(self.id), 'figure'),
+              [Input('div-out', 'children')],
+              [State('graph-{}'.format(self.id), 'figure')]), plot_bar_from_table))
 

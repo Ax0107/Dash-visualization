@@ -77,7 +77,7 @@ def file_uploarer():
 def table():
     return html.Div(children=[
         file_uploarer(),
-        dash_table.DataTable(id='table', page_action='custom', page_current=0, editable=True),
+        dash_table.DataTable(id='table', page_action='custom', page_current=0, editable=True, data=[{'0': 0}]),
         html.Div(id='div-out', style={'display': 'none'})
         ])
 

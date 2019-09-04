@@ -27,12 +27,15 @@ for opts, funcs in callbacks.Callbacks("BasicLayout", 0)():
 for opts, funcs in callbacks.Callbacks("Table", 0)():
     functions.append(app.callback(*opts)(funcs))
 
-for i in range(0, 10):
-    for opts, funcs in callbacks.Callbacks("ScatterTable", i)():
+for opts, funcs in callbacks.Callbacks("ScatterTable", 1)():
         functions.append(app.callback(*opts)(funcs))
-for i in range(10, 20):
-    for opts, funcs in callbacks.Callbacks("BarTable", i)():
-        functions.append(app.callback(*opts)(funcs))
+
+# for i in range(0, 10):
+#    for opts, funcs in callbacks.Callbacks("ScatterTable", i)():
+#        functions.append(app.callback(*opts)(funcs))
+# for i in range(10, 20):
+#    for opts, funcs in callbacks.Callbacks("BarTable", i)():
+#        functions.append(app.callback(*opts)(funcs))
 
 
 if __name__ == '__main__':
