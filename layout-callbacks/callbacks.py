@@ -5,28 +5,9 @@ import base64
 import io
 import dash
 import uuid
+from math import isnan, nan
 from ast import literal_eval
 import layout
-
-
-def parse_contents(contents, filename):
-    """
-    Вспомогательная функция для парсинга CVS.
-    :param contents: контент файла
-    :param filename: имя файла
-    :return: лист с значениями из CVS
-    """
-    content_type, content_string = contents.split(',')
-
-    decoded = base64.b64decode(content_string)
-    try:
-        if 'csv' in filename:
-            df = pd.read_csv(
-                io.StringIO(decoded.decode('utf-8')))
-            return df.to_dict('records')
-    except Exception as e:
-        print(e)
-    return 1
 
 
 def get_file(list_of_contents, list_of_names):
@@ -42,7 +23,8 @@ def get_file(list_of_contents, list_of_names):
 
     if 'csv' in list_of_names[0]:
         return pd.read_csv(
-               io.StringIO(decoded.decode('utf-8')))
+               io.StringIO(decoded.decode('utf-8')),
+               sep=';', header=0)
     elif 'xls' in list_of_names[0]:
         return pd.read_excel(io.BytesIO(decoded))
 
@@ -60,7 +42,6 @@ def table_load_selected(selected_rows, data):
     :param selected_rows: выделенные клетки таблицы
     :return: children of div-out (строка(словарь с выделенными данными))
     """
-    print('SELECTED ROWS', selected_rows)
     if data and selected_rows:
         d = []
         for i in range(0, len(selected_rows)):
@@ -177,19 +158,6 @@ def select_on_table_from_graph(points, table_data):
     return []
 
 
-def denormalize_csv(df):
-    data = []
-    keys = list(df.to_dict('records')[0].keys())
-    key_string = 'values'
-    for i in range(len(df.to_dict('records'))):
-        values_string = ''
-        for k in keys:
-            value = df.to_dict('records')[i][k]
-            values_string += value + ";"
-        data.append({key_string: values_string})
-    return pd.DataFrame(data)
-
-
 def normalize_csv(df):
     # тут идут преобразования данных из таблицы из {'1;2': '1;2'} в {'1': '1', '2': '2'}
     #                                                                   из-за кривости считывания формата
@@ -226,7 +194,7 @@ def show_table(p_size, page, list_of_contents, n_clicks, value, existing_columns
     """
     if n_clicks and dash.callback_context.triggered[0]['prop_id'] == 'btn-add-column.n_clicks':
         existing_columns.append({
-            'id': str(len(existing_columns)+1), 'name': value,
+            'id': value, 'name': value,
             'deletable': True
         })
         return existing_columns, existing_data, list_of_names[0]
@@ -234,8 +202,8 @@ def show_table(p_size, page, list_of_contents, n_clicks, value, existing_columns
         # парсинг файла
         df = get_file(list_of_contents, list_of_names)
         df = df.iloc[page * int(p_size):(page + 1) * int(p_size)]
-        if 'csv' in list_of_names[0]:
-            df = normalize_csv(df)
+        print('FILE:', df.to_dict('records'))
+        print('columns', df.columns)
         return [{"name": i, "id": i} for i in df.columns], df.to_dict('records'), list_of_names[0]
     return [], [], ''
 
@@ -311,15 +279,19 @@ def download_table(n, df, save_options, file_content, file_name, p_size, page):
     df = pd.DataFrame(df)
     if save_options and 'save-all' in save_options:
         df_file = get_file(file_content, file_name)
-        if 'csv' in file_name[0]:
-            df = denormalize_csv(df)
-            for j in range(int(p_size)):
-                df_file.iloc[int(p_size)*int(page)+j] = df.to_dict('records')[j]['values']
-        else:
-            for j in range(int(p_size)):
-                df_file.iloc[int(p_size)*int(page)+j] = df.to_dict('records')[j]
-        df = normalize_csv(df_file)
+        print('Dic', df_file.to_dict('records'))
 
+        columns_file = list(df_file.columns)
+        columns_table = list(df.columns)
+        if columns_file != columns_table:
+            if len(columns_file) < len(columns_table):
+                for i in range(len(columns_file), len(columns_table)):
+                    df_file[columns_table[i]] = [None] * len(df_file)
+
+        for j in range(int(p_size)):
+            df_file.iloc[int(p_size)*int(page)+j] = df.to_dict('records')[j]
+        df = df_file
+    df = df.where((pd.notnull(df)), None)  # changing Nan values
     print(df.to_dict('records'))
     filename = f"{uuid.uuid1()}"
     path = f".\\files\\{filename}.csv"
