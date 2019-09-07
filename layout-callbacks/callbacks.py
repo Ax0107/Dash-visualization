@@ -10,7 +10,7 @@ from ast import literal_eval
 import layout
 
 
-def get_file(list_of_contents, list_of_names):
+def get_file(list_of_contents, list_of_names, first_column_as_headers, separator):
     """
     Вспомогательная функция для чтения CSV
     :param list_of_contents: контент файла
@@ -22,11 +22,19 @@ def get_file(list_of_contents, list_of_names):
     decoded = base64.b64decode(content_string)
 
     if 'csv' in list_of_names[0]:
-        return pd.read_csv(
-               io.StringIO(decoded.decode('utf-8')),
-               sep=';', header=0)
+        if first_column_as_headers:
+            return pd.read_csv(
+                   io.StringIO(decoded.decode('utf-8')),
+                   sep=separator, header=0)
+        else:
+            return pd.read_csv(
+                io.StringIO(decoded.decode('utf-8')),
+                sep=separator)
     elif 'xls' in list_of_names[0]:
-        return pd.read_excel(io.BytesIO(decoded))
+        if first_column_as_headers:
+            return pd.read_excel(io.BytesIO(decoded), header=0)
+        else:
+            return pd.read_excel(io.BytesIO(decoded))
 
     return None
 
@@ -183,7 +191,8 @@ def normalize_csv(df):
         return pd.DataFrame(table_data)
 
 
-def show_table(p_size, page, list_of_contents, n_clicks, value, existing_columns, existing_data, list_of_names):
+def show_table(p_size, page, list_of_contents, n_clicks, value, existing_columns, existing_data, list_of_names,
+               first_column_as_headers, separator):
     """
     Отображает таблицу из CSV файла
     :param p_size: количество строк на странице (получается из input p-size)
@@ -197,15 +206,19 @@ def show_table(p_size, page, list_of_contents, n_clicks, value, existing_columns
             'id': value, 'name': value,
             'deletable': True
         })
-        return existing_columns, existing_data, list_of_names[0]
+        return existing_columns, existing_data, list_of_names[0], {}
     if list_of_names is not None or (dash.callback_context.triggered[0]['prop_id'] == 'table.page_current' and page):
+        if first_column_as_headers and 1 in first_column_as_headers:
+            first_column_as_headers = 1
+        else:
+            first_column_as_headers = 0
+        if not separator:
+            separator = ';'
         # парсинг файла
-        df = get_file(list_of_contents, list_of_names)
+        df = get_file(list_of_contents, list_of_names, first_column_as_headers, separator)
         df = df.iloc[page * int(p_size):(page + 1) * int(p_size)]
-        print('FILE:', df.to_dict('records'))
-        print('columns', df.columns)
-        return [{"name": i, "id": i} for i in df.columns], df.to_dict('records'), list_of_names[0]
-    return [], [], ''
+        return [{"name": i, "id": i} for i in df.columns], df.to_dict('records'), list_of_names[0], {}
+    return [], [], '', {'display': 'none'}
 
 
 def show_edit_block(value):
@@ -273,12 +286,18 @@ def set_created_graphs(n_clicks, graph_type, created_graphs):
     return created_graphs
 
 
-def download_table(n, df, save_options, file_content, file_name, p_size, page):
+def download_table(n, df, save_options, file_content, file_name, first_column_as_headers, separator, p_size, page):
     if df is None or not n:
         return [layout.build_download_button()]
     df = pd.DataFrame(df)
     if save_options and 'save-all' in save_options:
-        df_file = get_file(file_content, file_name)
+        if first_column_as_headers and 1 in first_column_as_headers:
+            first_column_as_headers = 1
+        else:
+            first_column_as_headers = 0
+        if not separator:
+            separator = ';'
+        df_file = get_file(file_content, file_name, first_column_as_headers, separator)
         print('Dic', df_file.to_dict('records'))
 
         columns_file = list(df_file.columns)
@@ -298,6 +317,19 @@ def download_table(n, df, save_options, file_content, file_name, p_size, page):
     df.to_csv(path, sep=';', index=None, header=True)
     return [layout.build_download_button(path)]
 
+
+def open_upload_block(n):
+    # TODO: Blackout for background when open block
+    if n:
+        return {'width': '60rem'}, \
+               {}
+    return {'display': 'none'}, {}
+
+
+def delete_graph(n):
+    if n:
+        return {'display': 'none'}
+    return {}
 
 # # # # # # # # Классы Callback # # # # # # # #
 
@@ -335,6 +367,10 @@ class BasicLayout(CallbackObj):
               [Input('btn-create-graph', 'n_clicks'),
                Input('graph-type', 'value')],
               [State('created-graphs', 'children')]), set_created_graphs))
+        self.val.append(
+            (([Output('upload-block', 'style'),
+               Output('background', 'style')],
+              [Input('btn-open-upload-block', 'n_clicks')]), open_upload_block))
 
 
 class Table(CallbackObj):
@@ -346,7 +382,8 @@ class Table(CallbackObj):
                Output('page-size', 'style')],
               [Input('upload-data', 'contents')]), show_page_slider))
         self.val.append(
-            (([Output('table', 'columns'), Output('table', 'data'), Output('table-filename', 'children')],
+            (([Output('table', 'columns'), Output('table', 'data'), Output('table-filename', 'children'),
+               Output('table-info', 'style')],
               [Input('page-size', 'value'),
                Input('table', "page_current"),
                Input('upload-data', 'contents'),
@@ -354,7 +391,9 @@ class Table(CallbackObj):
               [State('new-column-name', 'value'),
                State('table', 'columns'),
                State('table', 'data'),
-               State('upload-data', 'filename')]), show_table))
+               State('upload-data', 'filename'),
+               State('first-column-as-headers', 'value'),
+               State('separator', 'value')]), show_table))
         self.val.append(
             (([Output('div-out', 'children')],
              [Input('table', 'selected_cells')],
@@ -367,6 +406,8 @@ class Table(CallbackObj):
               State('table-save-all-checkbox', 'value'),
               State('upload-data', 'contents'),
               State('upload-data', 'filename'),
+              State('first-column-as-headers', 'value'),
+              State('separator', 'value'),
               State('page-size', 'value'),
               State('table', 'page_current'),
               ]), download_table))
@@ -384,6 +425,9 @@ class ScatterTable(CallbackObj):
             ((Output('table', 'selected_cells'),
              [Input('graph-{}'.format(self.id), 'selectedData')],
               [State('table', 'data')]), select_on_table_from_graph))
+        self.val.append(
+            ((Output('graph-card-{}'.format(self.id), 'style'),
+              [Input('btn-delete-{}'.format(self.id), 'n_clicks')]), delete_graph))
 
 class BarTable(CallbackObj):
     def __init__(self, graph_id):

@@ -15,6 +15,28 @@ app.scripts.config.serve_locally = True
 
 app.layout = layout.layout
 
+app.index_string = '''
+<!DOCTYPE html>
+<html>
+    <head>
+        {%metas%}
+        <title>{%title%}</title>
+        {%favicon%}
+        {%css%}
+    </head>
+    <body>
+        <div id='blackout'>
+        {%app_entry%}
+        <footer>
+            {%config%}
+            {%scripts%}
+            {%renderer%}
+        </footer>
+        </div>
+    </body>
+</html>
+'''
+
 
 @app.server.route('/download/<path:path>')
 def download_table(path):

@@ -76,7 +76,6 @@ def file_uploarer():
 
 def table():
     return html.Div(children=[
-        file_uploarer(),
         dash_table.DataTable(id='table', page_action='custom', page_current=0, editable=True, data=[{'0': 0}]),
         html.Div(id='div-out', style={'display': 'none'})
         ])
@@ -99,22 +98,47 @@ def table_info():
                     {'label': 'Сохрагить полностью', 'value': 'save-all'}]),
             html.Div(id='table-buttons', children=[]),
         ])
-    ])
+    ], id='table-info', style={'display': 'none'})
+
 
 def layout():
     return html.Div([
-        dbc.Row([
-            dbc.Col([table()], width={"size": 8}),
-            dbc.Col([table_info()], width={"size": 4}),
-        ]),
-        dbc.Button('Добавить новый график', id='btn-create-graph', color='primary', style={'width': "100%"}),
-        dcc.Dropdown(id='graph-type',
-                     options=[{'label': 'Scatter', 'value': 'scatter'},
-                              {'label': 'Bar', 'value': 'bar'}],
-                     value='scatter'),
-        html.Div(id='created-graphs', style={'display': 'none'}),
-        html.Div(id='graphs', children=[])
-        ], style={'margin-left': '20%', 'margin-right': '20%'})
+            html.Div(id='background', children=[
+                dbc.NavbarSimple(
+                    children=[
+                        dbc.NavItem(dbc.Button('Загрузить',
+                                               id='btn-open-upload-block',
+                                               color='primary')),
+                        dbc.NavItem(dcc.Dropdown(id='graph-type',
+                                                 options=[{'label': 'Scatter', 'value': 'scatter'},
+                                                          {'label': 'Bar', 'value': 'bar'}],
+                                                 value='scatter')),
+                    ]
+                ),
+                html.Div(id='created-graphs', style={'display': 'none'}),
+                html.Div(id='graphs', children=[]),
+                dbc.Row([
+                    dbc.Col([table()], width={"size": 8}),
+                    dbc.Col([table_info()], width={"size": 4}),
+                ]),
+                dbc.Button('Добавить новый график', id='btn-create-graph', color='primary', style={'width': "100%"}),
+            ]),
+            dbc.Card([
+                dbc.CardBody([
+                    dbc.Checklist(
+                        options=[
+                            {"label": "Использовать первую строку, как заголовки", "value": 1},
+                        ],
+                        values=[1],
+                        id="first-column-as-headers",
+                    ),
+                    html.Hr(),
+                    dbc.Label('Разделитель:'),
+                    dbc.Input(id='separator', value=';', type="text"),
+                    file_uploarer()
+                ])
+            ], id='upload-block'),
+        ])
 
 
 def row(*cols):
@@ -129,7 +153,7 @@ def row(*cols):
 def work_card(global_id):
     cardd = dbc.Card([
             dbc.CardHeader([
-                dbc.Button('X', id='button_delete-{}'.format(global_id),
+                dbc.Button('X', id='btn-delete-{}'.format(global_id),
                            color="primary", style={"float": "right"}),
             ]),
             dbc.CardBody([
@@ -137,7 +161,7 @@ def work_card(global_id):
                     graph_table(global_id)
                 ]),
             ]),
-    ])
+    ], id='graph-card-{}'.format(global_id))
 
     return cardd
 
