@@ -108,7 +108,7 @@ def plot_scatter(pointss, filecontent, filename, f_header, separator, figure):
     :param line_selector_options: линии, которые возможно выделить (для dropdown)
     :return: новая фигура графика
     """
-    if dash.callback_context.triggered[0]['prop_id'] == 'div-out.children' and pointss:
+    if pointss:
         # Дальше идёт преобразование данных к нужному типу
         pointss = literal_eval(pointss)
         columns = set([i['column'] for i in pointss])
@@ -341,6 +341,19 @@ def download_table(n, df, save_options, file_content, file_name, first_column_as
     return [layout.build_download_button(path)]
 
 
+def update_columns_in_new_trace_block(content, filename, f_header, separator):
+    if content:
+        # TODO: remove values that already selected in other selector options (needed, 'cuz options equal)
+        df = get_file(content, filename, f_header, separator)
+        columns = [{"label": i, "value": i} for i in df.columns]
+        return columns, columns
+    return [], []
+
+def open_new_trace_block(n):
+    if n:
+        return {'width': '60rem'}
+    return {'display': 'none'}
+
 def delete_graph(n, style):
     if n:
         return {'display': 'none'}
@@ -383,7 +396,15 @@ class BasicLayout(CallbackObj):
               [Input('btn-create-graph', 'n_clicks'),
                Input('graph-type', 'value')],
               [State('created-graphs', 'children')]), set_created_graphs))
-
+        self.val.append(
+            (([Output('columns-x-selector', 'options'), Output('columns-y-selector', 'options')],
+              [Input('upload-data', 'contents')],
+              [State('upload-data', 'filename'),
+               State('first-column-as-headers', 'value'),
+               State('separator', 'value')]), update_columns_in_new_trace_block))
+        self.val.append(
+            ((Output('new-trace-block', 'style'),
+              [Input('btn-add-trace', 'n_clicks')]), open_new_trace_block))
 
 class Table(CallbackObj):
     def __init__(self, id):
@@ -395,8 +416,7 @@ class Table(CallbackObj):
               [Input('upload-data', 'contents')]), show_page_slider))
         self.val.append(
             (([Output('table', 'columns'), Output('table', 'data'), Output('table-filename', 'children'),
-               Output('table-info', 'style'), Output('upload-block', 'style'),
-               ],
+               Output('table-info', 'style'), Output('upload-block', 'style')],
               [Input('btn-open-upload-block', 'n_clicks'),
                Input('page-size', 'value'),
                Input('table', "page_current"),

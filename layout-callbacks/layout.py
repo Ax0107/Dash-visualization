@@ -112,10 +112,6 @@ def layout():
                         dbc.Button('Добавить новый график',
                                    id='btn-create-graph',
                                    color='primary', style={'float': 'left', 'margin-left': '10px'}),
-                        dcc.Dropdown(id='graph-type',
-                                     options=[{'label': 'Scatter', 'value': 'scatter'},
-                                              {'label': 'Bar', 'value': 'bar'}],
-                                     value='scatter', style={'float': 'left', 'width': '10rem', 'margin-left': '10px'}),
                         dbc.Button('Добавить отображение',
                                    id='btn-add-trace',
                                    color='secondary', style={'float': 'left', 'margin-left': '20px'}),
@@ -142,7 +138,39 @@ def layout():
                     file_uploarer()
                 ])
             ], id='upload-block'),
-        
+            dbc.Card([
+                dbc.CardBody([
+                    dcc.Dropdown(id='graph-type',
+                                 options=[{'label': 'Scatter', 'value': 'scatter'},
+                                          {'label': 'Bar', 'value': 'bar'}],
+                                 value='scatter'),
+                    html.Hr(),
+                    dbc.Row([
+                        dbc.Col([dbc.Label('X:')]),
+                        dbc.Col([
+                            dcc.Dropdown(
+                                id='columns-x-selector',
+                                options=[],
+                                value=[],
+                                multi=True
+                            )
+                        ]),
+                    ]),
+                    html.Hr(),
+                    dbc.Row([
+                        dbc.Col([dbc.Label('Y:')]),
+                        dbc.Col([
+                            dcc.Dropdown(
+                                id='columns-y-selector',
+                                options=[],
+                                value=[],
+                                multi=True
+                            )
+                        ]),
+                    ]),
+
+                ])
+            ], id='new-trace-block'),
         ])
 
 
