@@ -100,7 +100,7 @@ def plot_bar_from_table(pointss, figure):
     }, style
 
 
-def plot_scatter(pointss, filecontent, filename, f_header, separator, figure):
+def plot_scatter(pointss, filecontent, x_column, y_column, graph_type, filename, f_header, separator, figure):
     """
     Рисует график из выделенных данных в CSV таблице
     :param pointss: точки, полученные из div-out
@@ -108,7 +108,7 @@ def plot_scatter(pointss, filecontent, filename, f_header, separator, figure):
     :param line_selector_options: линии, которые возможно выделить (для dropdown)
     :return: новая фигура графика
     """
-    if pointss:
+    if pointss and dash.callback_context.triggered[0]['prop_id'] == 'div-out.children':
         # Дальше идёт преобразование данных к нужному типу
         pointss = literal_eval(pointss)
         columns = set([i['column'] for i in pointss])
@@ -133,6 +133,15 @@ def plot_scatter(pointss, filecontent, filename, f_header, separator, figure):
         for v in range(0, len(points)):
             fig.append_trace({'y': points[v], 'type': 'scatter'}, 1, 1)
             line_selector_options.append({'label': v, 'value': v})
+        fig['layout'].update(title='Graph')
+        return fig
+    elif y_column:
+        df = get_file(filecontent, filename, f_header, separator)
+        fig = tls.make_subplots(rows=1, cols=1, shared_yaxes=True, shared_xaxes=True, vertical_spacing=0.009,
+                                horizontal_spacing=0.009)
+        fig['layout']['margin'] = {'l': 30, 'r': 10, 'b': 50, 't': 25}
+        for i in range(len(y_column)):
+            fig.append_trace({'y': df[y_column[i]], 'type': graph_type}, 1, 1)
         fig['layout'].update(title='Graph')
         return fig
     if figure:
@@ -454,8 +463,11 @@ class ScatterTable(CallbackObj):
         self.val.append(
             ((Output('graph-{}'.format(self.id), 'figure'),
               [Input('div-out', 'children'),
-               Input('upload-data', 'contents')],
-              [State('upload-data', 'filename'),
+               Input('upload-data', 'contents'),
+               Input('columns-x-selector', 'value'),
+               Input('columns-y-selector', 'value')],
+              [State('graph-type', 'value'),
+               State('upload-data', 'filename'),
                State('first-column-as-headers', 'value'),
                State('separator', 'value'),
                State('graph-{}'.format(self.id), 'figure')]), plot_scatter))
