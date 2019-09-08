@@ -100,7 +100,7 @@ def plot_bar_from_table(pointss, figure):
     }, style
 
 
-def plot_scatter_from_table(pointss, figure):
+def plot_scatter(pointss, filecontent, filename, f_header, separator, figure):
     """
     Рисует график из выделенных данных в CSV таблице
     :param pointss: точки, полученные из div-out
@@ -108,8 +108,7 @@ def plot_scatter_from_table(pointss, figure):
     :param line_selector_options: линии, которые возможно выделить (для dropdown)
     :return: новая фигура графика
     """
-    print('pointss:', pointss)
-    if pointss:
+    if dash.callback_context.triggered[0]['prop_id'] == 'div-out.children' and pointss:
         # Дальше идёт преобразование данных к нужному типу
         pointss = literal_eval(pointss)
         columns = set([i['column'] for i in pointss])
@@ -136,6 +135,8 @@ def plot_scatter_from_table(pointss, figure):
             line_selector_options.append({'label': v, 'value': v})
         fig['layout'].update(title='Graph')
         return fig
+    if figure:
+        return figure
     return {}
 
 
@@ -191,22 +192,40 @@ def normalize_csv(df):
         return pd.DataFrame(table_data)
 
 
-def show_table(p_size, page, list_of_contents, n_clicks, value, existing_columns, existing_data, list_of_names,
+def show_table(n_open_upload, p_size, page, n_clicks, list_of_contents, list_of_names,
+               value, existing_columns, existing_data,
                first_column_as_headers, separator):
     """
     Отображает таблицу из CSV файла
+    :param n_open_upload: обработчик нажатия кнопки для открытия блока загрузки файла
     :param p_size: количество строк на странице (получается из input p-size)
     :param page: текущая страница
+    :param n_clicks: обработчик нажатия кнопки для добавления новой колонки в таблицу
     :param list_of_contents: контент файла
     :param list_of_names: имя файла
+    :param value: название новой колонки
+    :param existing_columns: колонки таблицы
+    :param existing_data: данные табницы
+    :param first_column_as_headers: использовать ли первую строку, как заголовок
+    :param separator: разделитель для загрузки файла
     :return: table data
     """
+    def get_style_upload_block(is_invisible=False):
+        # # # Getting style for upload block # # #
+        if is_invisible:
+            return {'display': 'none'}
+        else:
+            return {'width': '60rem'}
+
+    if n_open_upload and dash.callback_context.triggered[0]['prop_id'] == 'btn-open-upload-block.n_clicks':
+        # TODO: Blackout for background when open block
+        return [], [], '', {'display': 'none'}, get_style_upload_block(False)
     if n_clicks and dash.callback_context.triggered[0]['prop_id'] == 'btn-add-column.n_clicks':
         existing_columns.append({
             'id': value, 'name': value,
             'deletable': True
         })
-        return existing_columns, existing_data, list_of_names[0], {}
+        return existing_columns, existing_data, list_of_names[0], {}, get_style_upload_block(True)
     if list_of_names is not None or (dash.callback_context.triggered[0]['prop_id'] == 'table.page_current' and page):
         if first_column_as_headers and 1 in first_column_as_headers:
             first_column_as_headers = 1
@@ -217,8 +236,9 @@ def show_table(p_size, page, list_of_contents, n_clicks, value, existing_columns
         # парсинг файла
         df = get_file(list_of_contents, list_of_names, first_column_as_headers, separator)
         df = df.iloc[page * int(p_size):(page + 1) * int(p_size)]
-        return [{"name": i, "id": i} for i in df.columns], df.to_dict('records'), list_of_names[0], {}
-    return [], [], '', {'display': 'none'}
+        return [{"name": i, "id": i} for i in df.columns], df.to_dict('records'), \
+                                                                list_of_names[0], {}, get_style_upload_block(True)
+    return [], [], '', {'display': 'none'}, get_style_upload_block(True)
 
 
 def show_edit_block(value):
@@ -236,7 +256,7 @@ def show_page_slider(l):
 
 def create_graph(n_clicks, graph_type, created_graphs, graphs):
     """
-    Функция добавляет новый график
+    Функция добавляет/удаляет график
     :param n_clicks: количество кликов на кнопку "добавить"
     :param graph_type: тип графика (scatter/bar etc.)
     :param created_graphs: количество созданныъ графиков по типам
@@ -248,16 +268,19 @@ def create_graph(n_clicks, graph_type, created_graphs, graphs):
     # print(dash.callback_context.triggered[0]['prop_id'])
     if dash.callback_context.triggered[0]['prop_id'] == 'created-graphs.children':
         if n_clicks:
-            # Меняем graph_id и выдаём  взависимости от типа графика
+            # Меняем graph_id взависимости от количества графиков этого типа
             if graph_type == 'scatter':
                 if created_graphs:
                     graph_id = int(literal_eval(created_graphs)['scatter'])
             elif graph_type == 'bar':
                 if created_graphs:
                     graph_id = 11 + int(literal_eval(created_graphs)['bar'])
-
-            if graphs is not None and not isinstance(graphs, list):
-                graphs['props']['children'].append(layout.work_card(graph_id))
+            print(graphs)
+            if graphs is not None:
+                if not isinstance(graphs, list):
+                    graphs = [graphs].append(layout.work_card(graph_id))
+                else:
+                    graphs.append(layout.work_card(graph_id))
             else:
                 graphs = layout.work_card(graph_id)
     return graphs
@@ -318,21 +341,14 @@ def download_table(n, df, save_options, file_content, file_name, first_column_as
     return [layout.build_download_button(path)]
 
 
-def open_upload_block(n):
-    # TODO: Blackout for background when open block
-    if n:
-        return {'width': '60rem'}, \
-               {}
-    return {'display': 'none'}, {}
-
-
-def delete_graph(n):
+def delete_graph(n, style):
     if n:
         return {'display': 'none'}
+    if style:
+        return style
     return {}
 
 # # # # # # # # Классы Callback # # # # # # # #
-
 
 class Callbacks(object):
     def __init__(self, name, graph_id):
@@ -367,10 +383,6 @@ class BasicLayout(CallbackObj):
               [Input('btn-create-graph', 'n_clicks'),
                Input('graph-type', 'value')],
               [State('created-graphs', 'children')]), set_created_graphs))
-        self.val.append(
-            (([Output('upload-block', 'style'),
-               Output('background', 'style')],
-              [Input('btn-open-upload-block', 'n_clicks')]), open_upload_block))
 
 
 class Table(CallbackObj):
@@ -383,15 +395,17 @@ class Table(CallbackObj):
               [Input('upload-data', 'contents')]), show_page_slider))
         self.val.append(
             (([Output('table', 'columns'), Output('table', 'data'), Output('table-filename', 'children'),
-               Output('table-info', 'style')],
-              [Input('page-size', 'value'),
+               Output('table-info', 'style'), Output('upload-block', 'style'),
+               ],
+              [Input('btn-open-upload-block', 'n_clicks'),
+               Input('page-size', 'value'),
                Input('table', "page_current"),
-               Input('upload-data', 'contents'),
-               Input('btn-add-column', 'n_clicks')],
-              [State('new-column-name', 'value'),
+               Input('btn-add-column', 'n_clicks'),
+               Input('upload-data', 'contents')],
+              [State('upload-data', 'filename'),
+               State('new-column-name', 'value'),
                State('table', 'columns'),
                State('table', 'data'),
-               State('upload-data', 'filename'),
                State('first-column-as-headers', 'value'),
                State('separator', 'value')]), show_table))
         self.val.append(
@@ -419,15 +433,20 @@ class ScatterTable(CallbackObj):
         self.id = graph_id
         self.val.append(
             ((Output('graph-{}'.format(self.id), 'figure'),
-              [Input('div-out', 'children')],
-              [State('graph-{}'.format(self.id), 'figure')]), plot_scatter_from_table))
+              [Input('div-out', 'children'),
+               Input('upload-data', 'contents')],
+              [State('upload-data', 'filename'),
+               State('first-column-as-headers', 'value'),
+               State('separator', 'value'),
+               State('graph-{}'.format(self.id), 'figure')]), plot_scatter))
         self.val.append(
             ((Output('table', 'selected_cells'),
              [Input('graph-{}'.format(self.id), 'selectedData')],
               [State('table', 'data')]), select_on_table_from_graph))
         self.val.append(
             ((Output('graph-card-{}'.format(self.id), 'style'),
-              [Input('btn-delete-{}'.format(self.id), 'n_clicks')]), delete_graph))
+              [Input('btn-delete-{}'.format(self.id), 'n_clicks')],
+              [State('graph-card-{}'.format(self.id), 'style')]), delete_graph))
 
 class BarTable(CallbackObj):
     def __init__(self, graph_id):

@@ -104,24 +104,28 @@ def table_info():
 def layout():
     return html.Div([
             html.Div(id='background', children=[
-                dbc.NavbarSimple(
+                html.Div(
                     children=[
-                        dbc.NavItem(dbc.Button('Загрузить',
-                                               id='btn-open-upload-block',
-                                               color='primary')),
-                        dbc.NavItem(dcc.Dropdown(id='graph-type',
-                                                 options=[{'label': 'Scatter', 'value': 'scatter'},
-                                                          {'label': 'Bar', 'value': 'bar'}],
-                                                 value='scatter')),
-                    ]
-                ),
+                        dbc.Button('Загрузить',
+                                   id='btn-open-upload-block',
+                                   color='primary', style={'float': 'right', 'margin-right': '30%'}),
+                        dbc.Button('Добавить новый график',
+                                   id='btn-create-graph',
+                                   color='primary', style={'float': 'left', 'margin-left': '10px'}),
+                        dcc.Dropdown(id='graph-type',
+                                     options=[{'label': 'Scatter', 'value': 'scatter'},
+                                              {'label': 'Bar', 'value': 'bar'}],
+                                     value='scatter', style={'float': 'left', 'width': '10rem', 'margin-left': '10px'}),
+                        dbc.Button('Добавить отображение',
+                                   id='btn-add-trace',
+                                   color='secondary', style={'float': 'left', 'margin-left': '20px'}),
+                    ], style={'margin': '10px', 'width': '100%', 'height': '50px'}),
                 html.Div(id='created-graphs', style={'display': 'none'}),
-                html.Div(id='graphs', children=[]),
+                dbc.Row(id='graphs', children=[], no_gutters=True,),
                 dbc.Row([
                     dbc.Col([table()], width={"size": 8}),
                     dbc.Col([table_info()], width={"size": 4}),
                 ]),
-                dbc.Button('Добавить новый график', id='btn-create-graph', color='primary', style={'width': "100%"}),
             ]),
             dbc.Card([
                 dbc.CardBody([
@@ -138,19 +142,13 @@ def layout():
                     file_uploarer()
                 ])
             ], id='upload-block'),
+        
         ])
 
 
-def row(*cols):
-    cols_list = []
-    for col in cols:
-        cols_list.append(
-            dbc.Col(col)
-        )
-    return dbc.Row(cols_list)
-
-
 def work_card(global_id):
+    def get_style():
+        return {'width': '30%'}
     cardd = dbc.Card([
             dbc.CardHeader([
                 dbc.Button('X', id='btn-delete-{}'.format(global_id),
@@ -163,7 +161,7 @@ def work_card(global_id):
             ]),
     ], id='graph-card-{}'.format(global_id))
 
-    return cardd
+    return dbc.Col(cardd, style=get_style())
 
 
 def bar_table():
