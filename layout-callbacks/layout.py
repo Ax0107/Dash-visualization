@@ -104,17 +104,17 @@ def table_info():
 def layout():
     return html.Div([
             html.Div(id='background', children=[
-                html.Div(
+                dbc.NavbarSimple(
                     children=[
-                        dbc.Button('Загрузить',
+                        dbc.NavItem(dbc.Button('Загрузить',
                                    id='btn-open-upload-block',
-                                   color='primary', style={'float': 'right', 'margin-right': '30%'}),
-                        dbc.Button('Добавить новый график',
+                                   color='primary', style={'float': 'right', 'margin-right': '30%'})),
+                        dbc.NavItem(dbc.Button('Добавить новый график',
                                    id='btn-create-graph',
-                                   color='primary', style={'float': 'left', 'margin-left': '10px'}),
-                        dbc.Button('Добавить отображение',
+                                   color='primary', style={'float': 'left', 'margin-left': '10px'})),
+                        dbc.NavItem(dbc.Button('Добавить отображение',
                                    id='btn-add-trace',
-                                   color='secondary', style={'float': 'left', 'margin-left': '20px'}),
+                                   color='secondary', style={'float': 'left', 'margin-left': '20px'})),
                     ], style={'margin': '10px', 'width': '100%', 'height': '50px'}),
                 html.Div(id='created-graphs', style={'display': 'none'}),
                 dbc.Row(id='graphs', children=[], no_gutters=True,),
