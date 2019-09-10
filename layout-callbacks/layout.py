@@ -90,6 +90,10 @@ def table_info():
             html.H4('Размер страницы:'),
             dcc.Input(id='page-size', type='number', value='5', style={'display': 'none'}),
             html.Hr(),
+            dcc.Checklist(id='show_selected_on_graph',
+                          options=[
+                              {'label': 'Отображать выбранное на графике', 'value': 'yes'}]),
+            html.Hr(),
             dcc.Input(id='new-column-name', placeholder='Введите имя нового столбца...', value=''),
             html.Button('Добавить новый столбец', id='btn-add-column', n_clicks=0),
             dbc.Button('Сохранить', id='btn-save-table', color='primary', style={'width': '100%'}),
@@ -142,7 +146,8 @@ def layout():
                 dbc.CardBody([
                     dcc.Dropdown(id='graph-type',
                                  options=[{'label': 'Scatter', 'value': 'scatter'},
-                                          {'label': 'Bar', 'value': 'bar'}],
+                                          # {'label': 'Bar', 'value': 'bar'}
+                                          ],
                                  value='scatter'),
                     html.Hr(),
                     dbc.Row([

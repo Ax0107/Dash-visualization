@@ -42,7 +42,7 @@ def get_file(list_of_contents, list_of_names, first_column_as_headers, separator
 # # # # # # # # Функции для отображения графиков # # # # # # # #
 
 
-def table_load_selected(selected_rows, content, filename, f_header, separator):
+def table_load_selected(selected_rows, content, filename, f_header, separator, show_selected_on_graph):
     """
     Функция выводит в div-out данные о выделенных столбцах, дабы другие фунции могли
                                                                 использовать эти данные
@@ -50,7 +50,7 @@ def table_load_selected(selected_rows, content, filename, f_header, separator):
     :param selected_rows: выделенные клетки таблицы
     :return: children of div-out (строка(словарь с выделенными данными))
     """
-    if content and selected_rows:
+    if content and selected_rows and show_selected_on_graph:
         df = get_file(content, filename, f_header, separator)
 
         data = df.to_dict('records')
@@ -461,7 +461,8 @@ class Table(CallbackObj):
              [State('upload-data', 'contents'),
               State('upload-data', 'filename'),
               State('first-column-as-headers', 'value'),
-              State('separator', 'value')]),
+              State('separator', 'value'),
+              State('show_selected_on_graph', 'value')]),
              table_load_selected))
         self.val.append(
             ((Output('table-buttons', 'children'),
