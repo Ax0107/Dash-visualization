@@ -152,7 +152,7 @@ def layout():
                                 id='columns-x-selector',
                                 options=[],
                                 value=[],
-                                multi=True
+                                multi=False
                             )
                         ]),
                     ]),

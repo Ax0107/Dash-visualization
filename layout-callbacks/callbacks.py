@@ -42,7 +42,7 @@ def get_file(list_of_contents, list_of_names, first_column_as_headers, separator
 # # # # # # # # Функции для отображения графиков # # # # # # # #
 
 
-def table_load_selected(selected_rows, data):
+def table_load_selected(selected_rows, content, filename, f_header, separator):
     """
     Функция выводит в div-out данные о выделенных столбцах, дабы другие фунции могли
                                                                 использовать эти данные
@@ -50,15 +50,21 @@ def table_load_selected(selected_rows, data):
     :param selected_rows: выделенные клетки таблицы
     :return: children of div-out (строка(словарь с выделенными данными))
     """
-    if data and selected_rows:
+    if content and selected_rows:
+        df = get_file(content, filename, f_header, separator)
+
+        data = df.to_dict('records')
         d = []
         for i in range(0, len(selected_rows)):
             row = selected_rows[i]['row']
             column = selected_rows[i]['column_id']
+            value = data[row][column]
             try:
-                d.append({'column': selected_rows[i]['column'], 'row': row, 'data': data[row][column]})
+                d.append({'column': selected_rows[i]['column'], 'row': row, 'data': value})
             except KeyError:
                 d.append({'column': selected_rows[i]['column'], 'row': row, 'data': None})
+            except IndexError:
+                pass
         return [str(d)]
     return ['']
 
@@ -108,7 +114,10 @@ def plot_scatter(pointss, filecontent, x_column, y_column, graph_type, filename,
     :param line_selector_options: линии, которые возможно выделить (для dropdown)
     :return: новая фигура графика
     """
+    graph_exec = 0
+    df = get_file(filecontent, filename, f_header, separator)
     if pointss and dash.callback_context.triggered[0]['prop_id'] == 'div-out.children':
+        graph_exec = 1
         # Дальше идёт преобразование данных к нужному типу
         pointss = literal_eval(pointss)
         columns = set([i['column'] for i in pointss])
@@ -123,55 +132,61 @@ def plot_scatter(pointss, filecontent, x_column, y_column, graph_type, filename,
             try:
                 points[columns[i['column']]].append(i['data'])
             except IndexError:
-                points.append([])
-                points[columns[i['column']]].append(i['data'])
-        fig = tls.make_subplots(rows=1, cols=1, shared_yaxes=True, shared_xaxes=True, vertical_spacing=0.009,
-                                horizontal_spacing=0.009)
-        fig['layout']['margin'] = {'l': 30, 'r': 10, 'b': 50, 't': 25}
+                try:
+                    points.append([])
+                    points[columns[i['column']]].append(i['data'])
+                except IndexError:
+                    pass
 
-        line_selector_options = []
-        for v in range(0, len(points)):
-            fig.append_trace({'y': points[v], 'type': 'scatter'}, 1, 1)
-            line_selector_options.append({'label': v, 'value': v})
-        fig['layout'].update(title='Graph')
-        return fig
     elif y_column:
-        df = get_file(filecontent, filename, f_header, separator)
+        graph_exec = 2
+        points = []
+        for i in range(len(y_column)):
+            points.append(df[y_column[i]])
+
+    if graph_exec:
         fig = tls.make_subplots(rows=1, cols=1, shared_yaxes=True, shared_xaxes=True, vertical_spacing=0.009,
                                 horizontal_spacing=0.009)
         fig['layout']['margin'] = {'l': 30, 'r': 10, 'b': 50, 't': 25}
-        for i in range(len(y_column)):
-            fig.append_trace({'y': df[y_column[i]], 'type': graph_type}, 1, 1)
-        fig['layout'].update(title='Graph')
+        trace = {}
+        if graph_exec == 2:
+            for i in range(len(y_column)):
+                if x_column:
+                    trace['x'] = df[x_column].to_list()
+                if y_column:
+                    trace['y'] = df[y_column[i]].to_list()
+                trace['type'] = graph_type
+                fig.append_trace(trace, 1, 1)
+        elif graph_exec == 1:
+            for i in range(len(points)):
+                trace['y'] = points[i]
+                trace['type'] = graph_type
+                fig.append_trace(trace, 1, 1)
+        fig['layout'].update(title='Graph', clickmode='event+select')
         return fig
-    if figure:
+
+    elif figure:
         return figure
+
     return {}
 
 
-def select_on_table_from_graph(points, table_data):
+def select_on_table_from_graph(points, table_data, y_column, x_column):
     if points:
-        print(points)
-        print(table_data)
-        # d.append({'column': selected_rows[i]['column'], 'row': row, 'data': data[row][column]})
-        # {'points': [
         # {'curveNumber': 0, 'pointNumber': 2, 'pointIndex': 2, 'x': 2, 'y': 2},
-        # {'curveNumber': 1, 'pointNumber': 2, 'pointIndex': 2, 'x': 2, 'y': 10},
-        # {'curveNumber': 2, 'pointNumber': 2, 'pointIndex': 2, 'x': 2, 'y': 2}]
         table_points = []
-        possible_table_points = []
+        keys = list(table_data[0].keys())
         for i in range(len(points.get('points', 0))):
-            for it in range(len(table_data)):
-                keys = list(table_data[it].keys())
-                for jt in range(len(keys)):
-                    if str(points['points'][i]['y']) == table_data[it][keys[jt]]:
-                        if len(possible_table_points):
-                            if possible_table_points[-1]['column'] in [jt+1, jt-1] \
-                                    or possible_table_points[0]['row'] in [it+1, it-1]:
-                                table_points.append(({'column': jt, 'row': it, 'column_id': keys[jt]}))
-                                table_points.append(possible_table_points[0])
-                        possible_table_points.append({'column': jt, 'row': it, 'column_id': keys[jt]})
-                        break
+            shift = 0
+            trace_num = points['points'][i]['curveNumber']
+            column_id = keys[trace_num]
+            column = trace_num
+            if y_column:
+                column_id = y_column[trace_num % len(y_column)]
+                column = [i for i in range(len(keys)) if keys[i] == column_id][0]
+            point_index = points['points'][i]['pointIndex']
+            print(column, column_id, point_index)
+            table_points.append({'column': column, 'row': point_index, 'column_id': column_id})
         return table_points
     return []
 
@@ -358,10 +373,12 @@ def update_columns_in_new_trace_block(content, filename, f_header, separator):
         return columns, columns
     return [], []
 
+
 def open_new_trace_block(n):
     if n:
         return {'width': '60rem'}
     return {'display': 'none'}
+
 
 def delete_graph(n, style):
     if n:
@@ -371,6 +388,7 @@ def delete_graph(n, style):
     return {}
 
 # # # # # # # # Классы Callback # # # # # # # #
+
 
 class Callbacks(object):
     def __init__(self, name, graph_id):
@@ -440,7 +458,10 @@ class Table(CallbackObj):
         self.val.append(
             (([Output('div-out', 'children')],
              [Input('table', 'selected_cells')],
-             [State('table', 'data')]),
+             [State('upload-data', 'contents'),
+              State('upload-data', 'filename'),
+              State('first-column-as-headers', 'value'),
+              State('separator', 'value')]),
              table_load_selected))
         self.val.append(
             ((Output('table-buttons', 'children'),
@@ -474,7 +495,9 @@ class ScatterTable(CallbackObj):
         self.val.append(
             ((Output('table', 'selected_cells'),
              [Input('graph-{}'.format(self.id), 'selectedData')],
-              [State('table', 'data')]), select_on_table_from_graph))
+              [State('table', 'data'),
+               State('columns-y-selector', 'value'),
+               State('columns-x-selector', 'value')]), select_on_table_from_graph))
         self.val.append(
             ((Output('graph-card-{}'.format(self.id), 'style'),
               [Input('btn-delete-{}'.format(self.id), 'n_clicks')],
