@@ -25,16 +25,16 @@ def get_file(list_of_contents, list_of_names, first_column_as_headers, separator
         if first_column_as_headers:
             return pd.read_csv(
                    io.StringIO(decoded.decode('utf-8')),
-                   sep=separator, header=0)
+                   sep=separator, header=0, dtype=object)
         else:
             return pd.read_csv(
                 io.StringIO(decoded.decode('utf-8')),
-                sep=separator)
+                sep=separator, dtype=object)
     elif 'xls' in list_of_names[0]:
         if first_column_as_headers:
-            return pd.read_excel(io.BytesIO(decoded), header=0)
+            return pd.read_excel(io.BytesIO(decoded), header=0, dtype=object)
         else:
-            return pd.read_excel(io.BytesIO(decoded))
+            return pd.read_excel(io.BytesIO(decoded), dtype=object)
 
     return None
 
@@ -42,7 +42,7 @@ def get_file(list_of_contents, list_of_names, first_column_as_headers, separator
 # # # # # # # # Функции для отображения графиков # # # # # # # #
 
 
-def table_load_selected(selected_rows, content, filename, f_header, separator, show_selected_on_graph):
+def table_load_selected(selected_rows, content, filename, f_header, separator, show_selected_on_graph, table_data):
     """
     Функция выводит в div-out данные о выделенных столбцах, дабы другие фунции могли
                                                                 использовать эти данные
@@ -52,19 +52,20 @@ def table_load_selected(selected_rows, content, filename, f_header, separator, s
     """
     if content and selected_rows and show_selected_on_graph:
         df = get_file(content, filename, f_header, separator)
-
+        print(table_data)
         data = df.to_dict('records')
         d = []
         for i in range(0, len(selected_rows)):
             row = selected_rows[i]['row']
             column = selected_rows[i]['column_id']
-            value = data[row][column]
             try:
-                d.append({'column': selected_rows[i]['column'], 'row': row, 'data': value})
+                value = data[row][column]
             except KeyError:
-                d.append({'column': selected_rows[i]['column'], 'row': row, 'data': None})
-            except IndexError:
-                pass
+                if column in table_data[row]:
+                    value = table_data[row][column]
+                else:
+                    value = None
+            d.append({'column': selected_rows[i]['column'], 'row': row, 'data': value})
         return [str(d)]
     return ['']
 
@@ -337,6 +338,7 @@ def download_table(n, df, save_options, file_content, file_name, first_column_as
     if df is None or not n:
         return [layout.build_download_button()]
     df = pd.DataFrame(df)
+    df = df.iloc[:, ::-1]
     if save_options and 'save-all' in save_options:
         if first_column_as_headers and 1 in first_column_as_headers:
             first_column_as_headers = 1
@@ -345,20 +347,18 @@ def download_table(n, df, save_options, file_content, file_name, first_column_as
         if not separator:
             separator = ';'
         df_file = get_file(file_content, file_name, first_column_as_headers, separator)
-        # print('Dic', df_file.to_dict('records'))
-
         columns_file = list(df_file.columns)
         columns_table = list(df.columns)
         if columns_file != columns_table:
             if len(columns_file) < len(columns_table):
                 for i in range(len(columns_file), len(columns_table)):
                     df_file[columns_table[i]] = [None] * len(df_file)
-
-        for j in range(int(p_size)):
+        for j in range(0, int(p_size)):
+            if int(p_size)*int(page)+j == 0:
+                j += 1
             df_file.iloc[int(p_size)*int(page)+j] = df.to_dict('records')[j]
         df = df_file
-    df = df.where((pd.notnull(df)), None)  # changing Nan values
-    print(df.to_dict('records'))
+    df = df.where((pd.notnull(df)), '')  # changing Nan values
     filename = f"{uuid.uuid1()}"
     path = f".\\files\\{filename}.csv"
     df.to_csv(path, sep=';', index=None, header=True)
@@ -462,7 +462,8 @@ class Table(CallbackObj):
               State('upload-data', 'filename'),
               State('first-column-as-headers', 'value'),
               State('separator', 'value'),
-              State('show_selected_on_graph', 'value')]),
+              State('show_selected_on_graph', 'value'),
+              State('table', 'data')]),
              table_load_selected))
         self.val.append(
             ((Output('table-buttons', 'children'),
