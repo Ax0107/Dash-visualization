@@ -59,7 +59,6 @@ def table_load_selected(selected_rows, content, filename, f_header, separator, s
     """
     if show_selected_on_graph and content and selected_rows:
         df = get_file(content, filename, f_header, separator)
-        print(table_data)
         data = df.to_dict('records')
         d = []
         for i in range(0, len(selected_rows)):
@@ -209,7 +208,6 @@ def select_on_table_from_graph(points, table_data, y_column, x_column):
         table_points = []
         keys = list(table_data[0].keys())
         for i in range(len(points.get('points', 0))):
-            shift = 0
             trace_num = points['points'][i]['curveNumber']
             column_id = keys[trace_num]
             column = trace_num
@@ -217,7 +215,6 @@ def select_on_table_from_graph(points, table_data, y_column, x_column):
                 column_id = y_column[trace_num % len(y_column)]
                 column = [i for i in range(len(keys)) if keys[i] == column_id][0]
             point_index = points['points'][i]['pointIndex']
-            print(column, column_id, point_index)
             table_points.append({'column': column, 'row': point_index, 'column_id': column_id})
         return table_points
     return []
@@ -235,8 +232,6 @@ def normalize_csv(df):
         keys = list(df.to_dict('records')[0].keys())
         splited_keys = keys[0].split(';')
         for i in range(0, len(df.to_dict('records'))):
-            # if (len(df.to_dict('records'))//10) % (i+1) == 0:
-            #     print('*', end='')
             a = {}
             data = df.to_dict('records')[i][keys[0]]
             if isinstance(data, str):
@@ -246,7 +241,6 @@ def normalize_csv(df):
             else:
                 a.update({keys[0]: data})
             table_data.append(a)
-        # print('\n')
         return pd.DataFrame(table_data)
 
 
@@ -349,7 +343,6 @@ def create_graph(n_clicks, graph_type, created_graphs, graphs):
 
     # Изначально graph_id = n_clicks
     graph_id = n_clicks
-    # print(dash.callback_context.triggered[0]['prop_id'])
     if dash.callback_context.triggered[0]['prop_id'] == 'created-graphs.children':
         if n_clicks:
             # Меняем graph_id взависимости от количества графиков этого типа
@@ -380,7 +373,6 @@ def set_created_graphs(n_clicks, graph_type, created_graphs):
     """
 
     if dash.callback_context.triggered[0]['prop_id'] == 'btn-create-graph.n_clicks':
-        # print(created_graphs)
         if created_graphs is not None:
             try:
                 n = int(literal_eval(created_graphs)[graph_type]) + 1
