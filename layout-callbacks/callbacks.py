@@ -335,11 +335,28 @@ def set_created_graphs(n_clicks, graph_type, created_graphs):
 
 
 def download_table(n, df, save_options, file_content, file_name, first_column_as_headers, separator, p_size, page):
+    """
+    Создаёт файл в директории "files" и возвращает кнопку для его загрузки
+    :param n: n_clicks кнопки "save"
+    :param df: table data
+    :param save_options: checkbox_value сохранять ли файл полностью
+    :param file_content: контент загруженного файла
+    :param file_name: имя файла
+    :param first_column_as_headers: используется ли первая строчка, как заголовок (файл)
+    :param separator: разделитель (файл)
+    :param p_size: размер страницы (table)
+    :param page: текущая страница (table)
+    :return: кнопка для загрузки файла
+    """
     if df is None or not n:
         return [layout.build_download_button()]
     df = pd.DataFrame(df)
+    # Переворачиваем Dataframe, потому что считывается он в обратном порядке
+    # Баг Dash? TODO: разобраться, можно ли правильно считывать table_data
     df = df.iloc[:, ::-1]
+
     if save_options and 'save-all' in save_options:
+        # Получение Dataframe из загруженного ранее файла
         if first_column_as_headers and 1 in first_column_as_headers:
             first_column_as_headers = 1
         else:
@@ -349,19 +366,22 @@ def download_table(n, df, save_options, file_content, file_name, first_column_as
         df_file = get_file(file_content, file_name, first_column_as_headers, separator)
         columns_file = list(df_file.columns)
         columns_table = list(df.columns)
+
+        # Если был создан новый столбец, добавляем его в df_file
         if columns_file != columns_table:
             if len(columns_file) < len(columns_table):
                 for i in range(len(columns_file), len(columns_table)):
                     df_file[columns_table[i]] = [None] * len(df_file)
         for j in range(0, int(p_size)):
-            if int(p_size)*int(page)+j == 0:
+            # Пропуск заголовков для записи (уже записаны)
+            if first_column_as_headers and int(p_size)*int(page)+j == 0:
                 j += 1
             df_file.iloc[int(p_size)*int(page)+j] = df.to_dict('records')[j]
         df = df_file
     df = df.where((pd.notnull(df)), '')  # changing Nan values
     filename = f"{uuid.uuid1()}"
     path = f".\\files\\{filename}.csv"
-    df.to_csv(path, sep=';', index=None, header=True)
+    df.to_csv(path, sep=separator, header=first_column_as_headers)
     return [layout.build_download_button(path)]
 
 
