@@ -559,6 +559,7 @@ class ScatterTable(CallbackObj):
               [Input('btn-delete-{}'.format(self.id), 'n_clicks')],
               [State('graph-card-{}'.format(self.id), 'style')]), delete_graph))
 
+
 class BarTable(CallbackObj):
     def __init__(self, graph_id):
         super().__init__()
