@@ -15,6 +15,8 @@ def get_file(list_of_contents, list_of_names, first_column_as_headers, separator
     Вспомогательная функция для чтения CSV
     :param list_of_contents: контент файла
     :param list_of_names: имя файла
+    :param first_column_as_headers: использовать ли первую строку, как заголовки
+    :param separator: разделитель
     :return: pandas data
     """
 
@@ -483,6 +485,7 @@ class BasicLayout(CallbackObj):
         self.val.append(
             ((Output('new-trace-block', 'style'),
               [Input('btn-add-trace', 'n_clicks')]), open_new_trace_block))
+
 
 class Table(CallbackObj):
     def __init__(self, id):
