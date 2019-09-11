@@ -44,16 +44,16 @@ def get_file(list_of_contents, list_of_names, first_column_as_headers, separator
 # # # # # # # # Функции для отображения графиков # # # # # # # #
 
 
-def table_load_selected(selected_rows, content, filename, f_header, separator, show_selected_on_graph, table_data):
+def table_load_selected(selected_rows, show_selected_on_graph, content, filename, f_header, separator, table_data):
     """
     Функция выводит в div-out данные о выделенных столбцах, дабы другие фунции могли
                                                                 использовать эти данные
     :param selected_rows: выделенные данные в таблице
+    :param show_selected_on_graph: выводить ли данные в div-out (показывать ли выделенное на таблице на графике)
     :param content: данные загруженного файла
     :param filename: имя загруженного файла
     :param f_header: используется ли первая строка, как заголовки
     :param separator: разделитель
-    :param show_selected_on_graph: выводить ли данные в div-out (показывать ли выделенное на таблице на графике)
     :param table_data: ...
     :return: div-out json
     """
@@ -532,12 +532,12 @@ class Table(CallbackObj):
                State('separator', 'value')]), show_table))
         self.val.append(
             (([Output('div-out', 'children')],
-             [Input('table', 'selected_cells')],
+             [Input('table', 'selected_cells'),
+              Input('show_selected_on_graph', 'value')],
              [State('upload-data', 'contents'),
               State('upload-data', 'filename'),
               State('first-column-as-headers', 'value'),
               State('separator', 'value'),
-              State('show_selected_on_graph', 'value'),
               State('table', 'data')]),
              table_load_selected))
         self.val.append(
