@@ -173,7 +173,17 @@ def plot_scatter(pointss, filecontent, x_column, y_column, graph_type, filename,
 
 
 def select_on_table_from_graph(points, table_data, y_column, x_column):
+    """
+    Выделяет выбранные на графике данные в таблице
+    :param points: выделенные на графике точки
+    :param table_data:
+    :param y_column: отображаемые y столбцы
+    :param x_column: отображаемые x столбцы
+    :return: данные для таблицы
+    """
+    # TODO: использовать x_column (выделять/передавать его?). Сейчас: игнорируется
     if points:
+        # формат получаемых данных:
         # {'curveNumber': 0, 'pointNumber': 2, 'pointIndex': 2, 'x': 2, 'y': 2},
         table_points = []
         keys = list(table_data[0].keys())
@@ -193,9 +203,11 @@ def select_on_table_from_graph(points, table_data, y_column, x_column):
 
 
 def normalize_csv(df):
-    # тут идут преобразования данных из таблицы из {'1;2': '1;2'} в {'1': '1', '2': '2'}
-    #                                                                   из-за кривости считывания формата
-    # print('Normalizing data: ', end='')
+    """
+    Преобразования данных из таблицы из {'1;2': '1;2'} в {'1': '1', '2': '2'}
+    :param df: pandas.Dataframe
+    :return: преобразованный Dataframe
+    """
     if df.to_dict('records'):
         table_data = []
 
