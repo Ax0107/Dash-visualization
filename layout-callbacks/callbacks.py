@@ -312,6 +312,31 @@ def show_page_slider(l):
     return 'none', 0, {'display': 'none'}
 
 
+def disable_creation_more_than_one_graph(func):
+    # # # # # # # # Disabling creation more than 1 graph (more - need to finish writing) # # # # # # # #
+    # TODO: Решить вопрос с callback'ами к таблице и т.п. (возможно, создавать новую для каждого графика?)
+    def wrapper(*args):
+        created_graphs = args[2]
+        # func = create_graph
+        if len(args) == 4:
+            graphs = args[3]
+            if created_graphs and int(literal_eval(created_graphs).get('scatter', 0)) == 2:
+                return graphs
+            else:
+                return func(*args)
+        # func = set_created_graphs
+        elif len(args) == 3:
+            if created_graphs and int(literal_eval(created_graphs).get('scatter', 0)) == 2:
+                return created_graphs
+            else:
+                return func(*args)
+        # func = delete_graph
+        elif len(args) == 2:
+            return {}
+    return wrapper
+
+
+@disable_creation_more_than_one_graph
 def create_graph(n_clicks, graph_type, created_graphs, graphs):
     """
     Функция добавляет/удаляет график
@@ -321,6 +346,7 @@ def create_graph(n_clicks, graph_type, created_graphs, graphs):
     :param graphs: div с children - графиками
     :return: layout с новым добавленным графиком
     """
+
     # Изначально graph_id = n_clicks
     graph_id = n_clicks
     # print(dash.callback_context.triggered[0]['prop_id'])
@@ -333,7 +359,6 @@ def create_graph(n_clicks, graph_type, created_graphs, graphs):
             elif graph_type == 'bar':
                 if created_graphs:
                     graph_id = 11 + int(literal_eval(created_graphs)['bar'])
-            print(graphs)
             if graphs is not None:
                 if not isinstance(graphs, list):
                     graphs = [graphs].append(layout.work_card(graph_id))
@@ -344,6 +369,7 @@ def create_graph(n_clicks, graph_type, created_graphs, graphs):
     return graphs
 
 
+@disable_creation_more_than_one_graph
 def set_created_graphs(n_clicks, graph_type, created_graphs):
     """
     Функция обновляет значчения created_graphs
@@ -352,6 +378,7 @@ def set_created_graphs(n_clicks, graph_type, created_graphs):
     :param created_graphs: state created_graphs
     :return: изменённыый created_graphs
     """
+
     if dash.callback_context.triggered[0]['prop_id'] == 'btn-create-graph.n_clicks':
         # print(created_graphs)
         if created_graphs is not None:
@@ -366,6 +393,15 @@ def set_created_graphs(n_clicks, graph_type, created_graphs):
         return str({graph_type: 1})
     return created_graphs
 
+
+# disable deleting
+@disable_creation_more_than_one_graph
+def delete_graph(n, style):
+    if n:
+        return {'display': 'none'}
+    if style:
+        return style
+    return {}
 
 def download_table(n, df, save_options, file_content, file_name, first_column_as_headers, separator, p_size, page):
     """
@@ -432,13 +468,6 @@ def open_new_trace_block(n):
         return {'width': '60rem'}
     return {'display': 'none'}
 
-
-def delete_graph(n, style):
-    if n:
-        return {'display': 'none'}
-    if style:
-        return style
-    return {}
 
 # # # # # # # # Классы Callback # # # # # # # #
 
