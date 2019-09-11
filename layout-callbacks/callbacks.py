@@ -109,12 +109,21 @@ def plot_bar_from_table(pointss, figure):
 
 def plot_scatter(pointss, filecontent, x_column, y_column, graph_type, filename, f_header, separator, figure):
     """
-    Рисует график из выделенных данных в CSV таблице
-    :param pointss: точки, полученные из div-out
+    Рисует график из выделенных данных на CSV таблице или после выбора new_trace
+    :param pointss: dict полученный из div-out (см. table_load_selected)
+    :param filecontent: данные из загруженного ранее файла
+    :param y_column: отображаемые y столбцы
+    :param x_column: отображаемые x столбцы
+    :param graph_type: тип графика
+    :param filename: имя загруженного ранее файла
+    :param f_header: используется ли первую строка (загруженного ранее файла), как заголовки
+    :param separator: разделитель загруженного ранее файла
     :param figure: фигура графика
-    :param line_selector_options: линии, которые возможно выделить (для dropdown)
-    :return: новая фигура графика
+    :return: graph figure
     """
+
+    # Для отслеживания модели поведения в соответсвии с ситуацией
+    # (загрузка из div-out или из выделенных данных на графике)
     graph_exec = 0
     df = get_file(filecontent, filename, f_header, separator)
     if pointss and dash.callback_context.triggered[0]['prop_id'] == 'div-out.children':
@@ -146,10 +155,13 @@ def plot_scatter(pointss, filecontent, x_column, y_column, graph_type, filename,
             points.append(df[y_column[i]])
 
     if graph_exec:
+        # Создаём график
         fig = tls.make_subplots(rows=1, cols=1, shared_yaxes=True, shared_xaxes=True, vertical_spacing=0.009,
                                 horizontal_spacing=0.009)
         fig['layout']['margin'] = {'l': 30, 'r': 10, 'b': 50, 't': 25}
         trace = {}
+        # Ситуация 2 (после выбора new_trace)
+        # fig.traces = df (данные из файла)
         if graph_exec == 2:
             for i in range(len(y_column)):
                 if x_column:
@@ -158,6 +170,8 @@ def plot_scatter(pointss, filecontent, x_column, y_column, graph_type, filename,
                     trace['y'] = df[y_column[i]].to_list()
                 trace['type'] = graph_type
                 fig.append_trace(trace, 1, 1)
+        # Ситуация 1 (загрузка из div-out)
+        # fig.traces = points из div-out
         elif graph_exec == 1:
             for i in range(len(points)):
                 trace['y'] = points[i]
@@ -165,7 +179,7 @@ def plot_scatter(pointss, filecontent, x_column, y_column, graph_type, filename,
                 fig.append_trace(trace, 1, 1)
         fig['layout'].update(title='Graph', clickmode='event+select')
         return fig
-
+    
     elif figure:
         return figure
 
