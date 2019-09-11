@@ -46,11 +46,16 @@ def table_load_selected(selected_rows, content, filename, f_header, separator, s
     """
     Функция выводит в div-out данные о выделенных столбцах, дабы другие фунции могли
                                                                 использовать эти данные
-    :param data: данные таблицы
-    :param selected_rows: выделенные клетки таблицы
-    :return: children of div-out (строка(словарь с выделенными данными))
+    :param selected_rows: выделенные данные в таблице
+    :param content: данные загруженного файла
+    :param filename: имя загруженного файла
+    :param f_header: используется ли первая строка, как заголовки
+    :param separator: разделитель
+    :param show_selected_on_graph: выводить ли данные в div-out (показывать ли выделенное на таблице на графике)
+    :param table_data: ...
+    :return: div-out json
     """
-    if content and selected_rows and show_selected_on_graph:
+    if show_selected_on_graph and content and selected_rows:
         df = get_file(content, filename, f_header, separator)
         print(table_data)
         data = df.to_dict('records')
@@ -179,7 +184,7 @@ def plot_scatter(pointss, filecontent, x_column, y_column, graph_type, filename,
                 fig.append_trace(trace, 1, 1)
         fig['layout'].update(title='Graph', clickmode='event+select')
         return fig
-    
+
     elif figure:
         return figure
 
