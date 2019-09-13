@@ -65,12 +65,13 @@ def table_load_selected(selected_rows, show_selected_on_graph, content, filename
             row = selected_rows[i]['row']
             column = selected_rows[i]['column_id']
             try:
-                value = data[row][column]
-            except KeyError:
                 if column in table_data[row]:
                     value = table_data[row][column]
                 else:
-                    value = None
+                    value = data[row][column]
+            except KeyError:
+                value = data[row][column]
+                
             d.append({'column': selected_rows[i]['column'], 'row': row, 'data': value})
         return [str(d)]
     return ['']
