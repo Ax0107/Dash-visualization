@@ -114,7 +114,7 @@ def plot_bar_from_table(pointss, figure):
     }, style
 
 
-def plot_scatter(pointss, filecontent, x_column, y_column, graph_type, filename, f_header, separator, figure):
+def plot_scatter(pointss, filecontent, x_column, y_column, graph_type, filename, f_header, separator, figure, p_size, page_current, table_data):
     """
     Рисует график из выделенных данных на CSV таблице или после выбора new_trace
     :param pointss: dict полученный из div-out (см. table_load_selected)
@@ -126,6 +126,7 @@ def plot_scatter(pointss, filecontent, x_column, y_column, graph_type, filename,
     :param f_header: используется ли первую строка (загруженного ранее файла), как заголовки
     :param separator: разделитель загруженного ранее файла
     :param figure: фигура графика
+    ...
     :return: graph figure
     """
 
@@ -159,7 +160,10 @@ def plot_scatter(pointss, filecontent, x_column, y_column, graph_type, filename,
         graph_exec = 2
         points = []
         for i in range(len(y_column)):
+            for j in range(int(p_size)*int(page_current), int(p_size)*int(page_current)+int(p_size)):
+                df[y_column[i]][j] = pd.DataFrame(table_data)[y_column[i]][j]
             points.append(df[y_column[i]])
+            
 
     if graph_exec:
         # Создаём график
@@ -569,7 +573,10 @@ class ScatterTable(CallbackObj):
                State('upload-data', 'filename'),
                State('first-column-as-headers', 'value'),
                State('separator', 'value'),
-               State('graph-{}'.format(self.id), 'figure')]), plot_scatter))
+               State('graph-{}'.format(self.id), 'figure'),
+               State('page-size', 'value'),
+               State('table', 'page_current'),
+               State('table', 'data')]), plot_scatter))
         self.val.append(
             ((Output('table', 'selected_cells'),
              [Input('graph-{}'.format(self.id), 'selectedData')],
