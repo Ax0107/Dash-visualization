@@ -521,7 +521,7 @@ class Table(CallbackObj):
                Output('table-info', 'style'), Output('upload-block', 'style')],
               [Input('btn-open-upload-block', 'n_clicks'),
                Input('page-size', 'value'),
-               Input('table', "page_current"),
+               Input('table', 'page_current'),
                Input('btn-add-column', 'n_clicks'),
                Input('upload-data', 'contents')],
               [State('upload-data', 'filename'),
