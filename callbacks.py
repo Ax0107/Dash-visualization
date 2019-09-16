@@ -5,7 +5,7 @@ import base64
 import io
 import dash
 import uuid
-from math import isnan, nan
+import json
 from ast import literal_eval
 import layout
 
@@ -43,24 +43,25 @@ def get_file(list_of_contents, list_of_names, first_column_as_headers, separator
 
 # # # # # # # # Функции для отображения графиков # # # # # # # #
 
-
 def table_load_selected(selected_rows, show_selected_on_graph, content, filename, f_header, separator, table_data):
     """
-    Функция выводит в div-out данные о выделенных столбцах, дабы другие фунции могли
+    Функция выводит в div-selected-data данные о выделенных столбцах, дабы другие фунции могли
                                                                 использовать эти данные
     :param selected_rows: выделенные данные в таблице
-    :param show_selected_on_graph: выводить ли данные в div-out (показывать ли выделенное на таблице на графике)
+    :param show_selected_on_graph: выводить ли данные в div-selected-data 
+                    (показывать ли выделенное на таблице на графике)
     :param content: данные загруженного файла
     :param filename: имя загруженного файла
     :param f_header: используется ли первая строка, как заголовки
     :param separator: разделитель
     :param table_data: ...
-    :return: div-out json
+    :return: div-selected-data json
     """
     if show_selected_on_graph and content and selected_rows:
         df = get_file(content, filename, f_header, separator)
         data = df.to_dict('records')
         d = []
+        # selected_rows = pd.DataFrame(selected_rows)
         for i in range(0, len(selected_rows)):
             row = selected_rows[i]['row']
             column = selected_rows[i]['column_id']
@@ -69,26 +70,25 @@ def table_load_selected(selected_rows, show_selected_on_graph, content, filename
                     value = table_data[row][column]
                 else:
                     value = data[row][column]
-            except KeyError:
+            except (KeyError, IndexError):
                 value = data[row][column]
-                
             d.append({'column': selected_rows[i]['column'], 'row': row, 'data': value})
-        return [str(d)]
+        return [json.dumps(d)]
     return ['']
 
 
-def plot_bar_from_table(pointss, figure):
+def plot_bar_from_table(selected_points, figure):
     """
     Рисует Bar из выделенных данных таблицы
-    :param pointss: dict полученный из div-out (см. table_load_selected)
+    :param selected_points: json полученный из div-selected-data (см. table_load_selected)
     :return: bar-figure
     """
     style = {'display': 'none'}
     points = [[0], [0]]
-    if pointss:
+    if selected_points:
         # Дальше идёт преобразование данных к нужному типу
-        pointss = literal_eval(pointss)
-        columns = set([i['column'] for i in pointss])
+        selected_points = literal_eval(selected_points)
+        columns = set([i['column'] for i in selected_points])
         count = len(columns)
 
         # создаём лист типа {X: 0, Y: 1, Z: 2},
@@ -97,7 +97,7 @@ def plot_bar_from_table(pointss, figure):
         columns = dict(zip(list(columns), list(range(0,count))))
         if count % 2 == 0:
             points = [[]]
-            for i in pointss:
+            for i in selected_points:
                 try:
                     points[columns[i['column']]].append(i['data'])
                 except IndexError:
@@ -114,10 +114,11 @@ def plot_bar_from_table(pointss, figure):
     }, style
 
 
-def plot_scatter(pointss, filecontent, x_column, y_column, graph_type, filename, f_header, separator, figure, p_size, page_current, table_data):
+def plot_scatter(selected_points, filecontent, x_column, y_column, graph_type, filename,
+                 f_header, separator, figure, p_size, page_current, table_data):
     """
     Рисует график из выделенных данных на CSV таблице или после выбора new_trace
-    :param pointss: dict полученный из div-out (см. table_load_selected)
+    :param selected_points: dict полученный из div-selected-data (см. table_load_selected)
     :param filecontent: данные из загруженного ранее файла
     :param y_column: отображаемые y столбцы
     :param x_column: отображаемые x столбцы
@@ -126,35 +127,25 @@ def plot_scatter(pointss, filecontent, x_column, y_column, graph_type, filename,
     :param f_header: используется ли первую строка (загруженного ранее файла), как заголовки
     :param separator: разделитель загруженного ранее файла
     :param figure: фигура графика
+    :param p_size: размер страницы таблицы
+    :param page_current: текущая страница таблицы
+    :param table_data: ...
     ...
     :return: graph figure
     """
 
     # Для отслеживания модели поведения в соответсвии с ситуацией
-    # (загрузка из div-out или из выделенных данных на графике)
+    # (загрузка из div-selected-data или из выделенных данных на графике)
     graph_exec = 0
     df = get_file(filecontent, filename, f_header, separator)
-    if pointss and dash.callback_context.triggered[0]['prop_id'] == 'div-out.children':
+    if selected_points and dash.callback_context.triggered[0]['prop_id'] == 'div-selected-data.children':
         graph_exec = 1
-        # Дальше идёт преобразование данных к нужному типу
-        pointss = literal_eval(pointss)
-        columns = set([i['column'] for i in pointss])
-        count = len(columns)
-
-        # создаём лист типа {X: 0, Y: 1, Z: 2} (X,Y,Z - числа в таблице),
-        # дабы при выделении в таблице данных не с нулевого столбца, мы могли обращаться к points
-        # по индексу 0, 1, 2 и т.д. (иначе, столбец = индекс и ловим IndexError)
-        columns = dict(zip(list(columns), list(range(0, count))))
-        points = []
-        for i in pointss:
-            try:
-                points[columns[i['column']]].append(i['data'])
-            except IndexError:
-                try:
-                    points.append([])
-                    points[columns[i['column']]].append(i['data'])
-                except IndexError:
-                    pass
+        points = json.loads(selected_points)
+        points = pd.DataFrame(points, index=None)
+        columns_values = points['column'].unique()
+        # Для обращения к индексам по счёту (при выделении данных не с 0 индекса или с пропусками колонок)
+        columns_values = dict(zip(list(range(0, len(columns_values))), list(columns_values)))
+        points = [points.loc[points['column'] == columns_values[i]]['data'].tolist() for i in columns_values]
 
     elif y_column:
         graph_exec = 2
@@ -168,11 +159,10 @@ def plot_scatter(pointss, filecontent, x_column, y_column, graph_type, filename,
     if graph_exec:
         # Создаём график
         fig = tls.make_subplots(rows=1, cols=1, shared_yaxes=True, shared_xaxes=True, vertical_spacing=0.009,
-                                horizontal_spacing=0.009)
+                                horizontal_spacing=0.009, print_grid=False)
         fig['layout']['margin'] = {'l': 30, 'r': 10, 'b': 50, 't': 25}
         trace = {}
-        # Ситуация 2 (после выбора new_trace)
-        # fig.traces = df (данные из файла)
+        # Ситуация 2 (выбор new_trace)
         if graph_exec == 2:
             for i in range(len(y_column)):
                 if x_column:
@@ -181,8 +171,7 @@ def plot_scatter(pointss, filecontent, x_column, y_column, graph_type, filename,
                     trace['y'] = df[y_column[i]].to_list()
                 trace['type'] = graph_type
                 fig.append_trace(trace, 1, 1)
-        # Ситуация 1 (загрузка из div-out)
-        # fig.traces = points из div-out
+        # Ситуация 1 (загрузка из div-selected-data)
         elif graph_exec == 1:
             for i in range(len(points)):
                 trace['y'] = points[i]
@@ -223,30 +212,6 @@ def select_on_table_from_graph(points, table_data, y_column, x_column):
             table_points.append({'column': column, 'row': point_index, 'column_id': column_id})
         return table_points
     return []
-
-
-def normalize_csv(df):
-    """
-    Преобразования данных из таблицы из {'1;2': '1;2'} в {'1': '1', '2': '2'}
-    :param df: pandas.Dataframe
-    :return: преобразованный Dataframe
-    """
-    if df.to_dict('records'):
-        table_data = []
-
-        keys = list(df.to_dict('records')[0].keys())
-        splited_keys = keys[0].split(';')
-        for i in range(0, len(df.to_dict('records'))):
-            a = {}
-            data = df.to_dict('records')[i][keys[0]]
-            if isinstance(data, str):
-                data = data.split(';')
-                for k in range(0, len(splited_keys)):
-                    a.update({splited_keys[k]: data[k]})
-            else:
-                a.update({keys[0]: data})
-            table_data.append(a)
-        return pd.DataFrame(table_data)
 
 
 def show_table(n_open_upload, p_size, page, n_clicks, list_of_contents, list_of_names,
@@ -383,8 +348,7 @@ def set_created_graphs(n_clicks, graph_type, created_graphs):
                 n = int(literal_eval(created_graphs)[graph_type]) + 1
                 created_graphs = literal_eval(created_graphs)
                 created_graphs.update({graph_type: n})
-            except KeyError or TypeError:
-                created_graphs = literal_eval(created_graphs)
+            except (KeyError, TypeError):
                 created_graphs.update({graph_type: 1})
             return str(created_graphs)
         return str({graph_type: 1})
@@ -438,7 +402,6 @@ def download_table(n, df, save_options, file_content, file_name, first_column_as
         if columns_file != columns_table:
             if len(columns_file) < len(columns_table):
                 for i in range(len(columns_file), len(columns_table)):
-                    print('Setting {} index of df_file'.format(i))
                     df_file[columns_table[i]] = [None] * len(df_file)
         for j in range(0, int(p_size)):
             # Пропуск заголовков для записи (уже записаны)
@@ -536,7 +499,7 @@ class Table(CallbackObj):
                State('first-column-as-headers', 'value'),
                State('separator', 'value')]), show_table))
         self.val.append(
-            (([Output('div-out', 'children')],
+            (([Output('div-selected-data', 'children')],
              [Input('table', 'selected_cells'),
               Input('show_selected_on_graph', 'value')],
              [State('upload-data', 'contents'),
@@ -565,7 +528,7 @@ class ScatterTable(CallbackObj):
         self.id = graph_id
         self.val.append(
             ((Output('graph-{}'.format(self.id), 'figure'),
-              [Input('div-out', 'children'),
+              [Input('div-selected-data', 'children'),
                Input('upload-data', 'contents'),
                Input('columns-x-selector', 'value'),
                Input('columns-y-selector', 'value')],
@@ -599,6 +562,6 @@ class BarTable(CallbackObj):
              show_edit_block))
         self.val.append(
             ((Output('graph-{}'.format(self.id), 'figure'),
-              [Input('div-out', 'children')],
+              [Input('div-selected-data', 'children')],
               [State('graph-{}'.format(self.id), 'figure')]), plot_bar_from_table))
 
