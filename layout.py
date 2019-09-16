@@ -133,7 +133,7 @@ def layout():
                         options=[
                             {"label": "Использовать первую строку, как заголовки", "value": 1},
                         ],
-                        value=[1],
+                        values=[1],
                         id="first-column-as-headers",
                     ),
                     html.Hr(),

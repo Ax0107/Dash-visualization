@@ -159,11 +159,11 @@ def plot_scatter(pointss, filecontent, x_column, y_column, graph_type, filename,
     elif y_column:
         graph_exec = 2
         points = []
+        df_table = pd.DataFrame(table_data)
         for i in range(len(y_column)):
             for j in range(int(p_size)*int(page_current), int(p_size)*int(page_current)+int(p_size)):
-                df[y_column[i]][j] = pd.DataFrame(table_data)[y_column[i]][j]
+                df[y_column[i]][j] = df_table[y_column[i]][j]
             points.append(df[y_column[i]])
-            
 
     if graph_exec:
         # Создаём график
@@ -400,6 +400,7 @@ def delete_graph(n, style):
         return style
     return {}
 
+
 def download_table(n, df, save_options, file_content, file_name, first_column_as_headers, separator, p_size, page):
     """
     Создаёт файл в директории "files" и возвращает кнопку для его загрузки
@@ -421,33 +422,32 @@ def download_table(n, df, save_options, file_content, file_name, first_column_as
     # Баг Dash? TODO: разобраться, можно ли правильно считывать table_data
     df = df.iloc[:, ::-1]
 
+    if first_column_as_headers and 1 in first_column_as_headers:
+        first_column_as_headers = 1
+    else:
+        first_column_as_headers = 0
+    if not separator:
+        separator = ';'
+
     if save_options and 'save-all' in save_options:
         # Получение Dataframe из загруженного ранее файла
-        if first_column_as_headers and 1 in first_column_as_headers:
-            first_column_as_headers = 1
-        else:
-            first_column_as_headers = 0
-        if not separator:
-            separator = ';'
         df_file = get_file(file_content, file_name, first_column_as_headers, separator)
         columns_file = list(df_file.columns)
         columns_table = list(df.columns)
-
         # Если был создан новый столбец, добавляем его в df_file
         if columns_file != columns_table:
             if len(columns_file) < len(columns_table):
                 for i in range(len(columns_file), len(columns_table)):
+                    print('Setting {} index of df_file'.format(i))
                     df_file[columns_table[i]] = [None] * len(df_file)
         for j in range(0, int(p_size)):
             # Пропуск заголовков для записи (уже записаны)
-            if first_column_as_headers and int(p_size)*int(page)+j == 0:
-                j += 1
             df_file.iloc[int(p_size)*int(page)+j] = df.to_dict('records')[j]
         df = df_file
     df = df.where((pd.notnull(df)), '')  # changing Nan values
     filename = f"{uuid.uuid1()}"
     path = f".\\files\\{filename}.csv"
-    df.to_csv(path, sep=separator, header=first_column_as_headers)
+    df.to_csv(path, sep=separator, index=None)
     return [layout.build_download_button(path)]
 
 
