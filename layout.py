@@ -88,19 +88,33 @@ def table_info():
             html.A('', id='table-filename'),
             html.Hr(),
             html.H4('Размер страницы:'),
-            dcc.Input(id='page-size', type='number', value='5', style={'display': 'none'}),
+            dcc.Input(id='page-size', type='number', value='5',
+                      style={'display': 'none', 'height': '40px'}),
             html.Hr(),
             dcc.Checklist(id='show_selected_on_graph',
                           options=[
                               {'label': 'Отображать выбранное на графике', 'value': 'yes'}]),
             html.Hr(),
-            dcc.Input(id='new-column-name', placeholder='Введите имя нового столбца...', value=''),
-            html.Button('Добавить новый столбец', id='btn-add-column', n_clicks=0),
+            dbc.Row([
+                dbc.Col([
+                    dcc.Input(id='new-column-name', placeholder='Введите имя нового столбца...', value='',
+                              style={'width': '90%', 'height': '40px'})
+                ]),
+                dbc.Col([
+                    dbc.Button('Добавить новый столбец', id='btn-add-column', n_clicks=0,
+                               style={'width': '100%', 'height': '40px'}),
+                ]),
+            ], no_gutters=True),
+            html.Hr(),
             dbc.Button('Сохранить', id='btn-save-table', color='primary', style={'width': '100%'}),
             dcc.Checklist(id='table-save-all-checkbox',
-                options=[
-                    {'label': 'Сохрагить полностью', 'value': 'save-all'}]),
+                          options=[
+                                {'label': 'Сохрагить полностью', 'value': 'save-all'}]),
             html.Div(id='table-buttons', children=[]),
+            html.Hr(),
+            dbc.Button('Сбросить выделенное',
+                       id='btn-reset-selected',
+                       color='secondary', style={'width': '100%'})
         ])
     ], id='table-info', style={'display': 'none'})
 

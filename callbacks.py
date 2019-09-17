@@ -71,50 +71,13 @@ def table_load_selected(selected_rows, show_selected_on_graph, content, filename
                 else:
                     value = data[row][column]
             except (KeyError, IndexError):
-                value = data[row][column]
+                value = None
             d.append({'column': selected_rows[i]['column'], 'row': row, 'data': value})
         return [json.dumps(d)]
     return ['']
 
 
-def plot_bar_from_table(selected_points, figure):
-    """
-    Рисует Bar из выделенных данных таблицы
-    :param selected_points: json полученный из div-selected-data (см. table_load_selected)
-    :return: bar-figure
-    """
-    style = {'display': 'none'}
-    points = [[0], [0]]
-    if selected_points:
-        # Дальше идёт преобразование данных к нужному типу
-        selected_points = literal_eval(selected_points)
-        columns = set([i['column'] for i in selected_points])
-        count = len(columns)
-
-        # создаём лист типа {X: 0, Y: 1, Z: 2},
-        # дабы при выделении в таблице данных не с нулевого столбца, мы могли обращаться к points
-        # по индексу 0, 1, 2 и т.д. (иначе, столбец = индекс)
-        columns = dict(zip(list(columns), list(range(0,count))))
-        if count % 2 == 0:
-            points = [[]]
-            for i in selected_points:
-                try:
-                    points[columns[i['column']]].append(i['data'])
-                except IndexError:
-                    points.append([])
-                    points[columns[i['column']]].append(i['data'])
-            style = {}
-    return {
-           'data': [
-               {'x': points[i], 'y': points[i + 1], 'name': '', 'type': 'bar'} for i in range(0, len(points), 2)
-           ],
-           'layout': {
-               'title': 'График (bar)'
-           }
-    }, style
-
-
-def plot_scatter(selected_points, filecontent, x_column, y_column, graph_type, filename,
+def plot_scatter(selected_points, filecontent, x_column, y_column, clicks_reset, graph_type, filename,
                  f_header, separator, figure, p_size, page_current, table_data):
     """
     Рисует график из выделенных данных на CSV таблице или после выбора new_trace
@@ -122,6 +85,7 @@ def plot_scatter(selected_points, filecontent, x_column, y_column, graph_type, f
     :param filecontent: данные из загруженного ранее файла
     :param y_column: отображаемые y столбцы
     :param x_column: отображаемые x столбцы
+    :param clicks_reset: количество нажатий на кнопку для сброса выделенного
     :param graph_type: тип графика
     :param filename: имя загруженного ранее файла
     :param f_header: используется ли первую строка (загруженного ранее файла), как заголовки
@@ -147,14 +111,17 @@ def plot_scatter(selected_points, filecontent, x_column, y_column, graph_type, f
         columns_values = dict(zip(list(range(0, len(columns_values))), list(columns_values)))
         points = [points.loc[points['column'] == columns_values[i]]['data'].tolist() for i in columns_values]
 
-    elif y_column:
+    elif dash.callback_context.triggered[0]['prop_id'] \
+            in ['columns-y-selector.value', 'btn-reset-selected.n_clicks']:
         graph_exec = 2
         points = []
-        df_table = pd.DataFrame(table_data)
-        for i in range(len(y_column)):
-            for j in range(int(p_size)*int(page_current), int(p_size)*int(page_current)+int(p_size)):
-                df[y_column[i]][j] = df_table[y_column[i]][j]
-            points.append(df[y_column[i]])
+        if y_column:
+            df_table = pd.DataFrame(table_data)
+            for i in range(len(y_column)):
+                for j in range(int(p_size)*int(page_current), int(p_size)*int(page_current)+int(p_size)):
+                    df[y_column[i]][j] = \
+                        df_table[y_column[i]][j]
+                points.append(df[y_column[i]])
 
     if graph_exec:
         # Создаём график
@@ -196,7 +163,7 @@ def select_on_table_from_graph(points, table_data, y_column, x_column):
     :return: данные для таблицы
     """
     # TODO: использовать x_column (выделять/передавать его?). Сейчас: игнорируется
-    if points:
+    if points and table_data:
         # формат получаемых данных:
         # {'curveNumber': 0, 'pointNumber': 2, 'pointIndex': 2, 'x': 2, 'y': 2},
         table_points = []
@@ -270,10 +237,15 @@ def show_edit_block(value):
     return {'display': 'none'}
 
 
-def show_page_slider(l):
+def show_page_slider(l, style):
     if l:
-        return 'custom', 0, {}
-    return 'none', 0, {'display': 'none'}
+        style.pop('display')
+        return 'custom', 0, style
+    if style:
+        style['display'] = 'none'
+    else:
+        style = {'display': 'none'}
+    return 'none', 0, style
 
 
 def disable_creation_more_than_one_graph(func):
@@ -381,9 +353,9 @@ def download_table(n, df, save_options, file_content, file_name, first_column_as
     """
     if df is None or not n:
         return [layout.build_download_button()]
+    print('DF', df)
     df = pd.DataFrame(df)
     # Переворачиваем Dataframe, потому что считывается он в обратном порядке
-    # Баг Dash? TODO: разобраться, можно ли правильно считывать table_data
     df = df.iloc[:, ::-1]
 
     if first_column_as_headers and 1 in first_column_as_headers:
@@ -483,7 +455,8 @@ class Table(CallbackObj):
         self.val.append(
             (([Output('table', 'page_action'), Output('table', 'page_current'),
                Output('page-size', 'style')],
-              [Input('upload-data', 'contents')]), show_page_slider))
+              [Input('upload-data', 'contents')],
+              [State('page-size', 'style')]), show_page_slider))
         self.val.append(
             (([Output('table', 'columns'), Output('table', 'data'), Output('table-filename', 'children'),
                Output('table-info', 'style'), Output('upload-block', 'style')],
@@ -531,7 +504,8 @@ class ScatterTable(CallbackObj):
               [Input('div-selected-data', 'children'),
                Input('upload-data', 'contents'),
                Input('columns-x-selector', 'value'),
-               Input('columns-y-selector', 'value')],
+               Input('columns-y-selector', 'value'),
+               Input('btn-reset-selected', 'n_clicks')],
               [State('graph-type', 'value'),
                State('upload-data', 'filename'),
                State('first-column-as-headers', 'value'),
@@ -551,17 +525,4 @@ class ScatterTable(CallbackObj):
               [Input('btn-delete-{}'.format(self.id), 'n_clicks')],
               [State('graph-card-{}'.format(self.id), 'style')]), delete_graph))
 
-
-class BarTable(CallbackObj):
-    def __init__(self, graph_id):
-        super().__init__()
-        self.id = graph_id
-        self.val.append(
-            ((Output('graph-edit-{}'.format(self.id), 'style'),
-              [Input('btn-open-style-{}'.format(self.id), 'n_clicks')]),
-             show_edit_block))
-        self.val.append(
-            ((Output('graph-{}'.format(self.id), 'figure'),
-              [Input('div-selected-data', 'children')],
-              [State('graph-{}'.format(self.id), 'figure')]), plot_bar_from_table))
 
