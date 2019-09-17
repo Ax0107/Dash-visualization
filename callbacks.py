@@ -212,7 +212,8 @@ def show_table(n_open_upload, p_size, page, n_clicks, list_of_contents, list_of_
     if n_clicks and dash.callback_context.triggered[0]['prop_id'] == 'btn-add-column.n_clicks':
         existing_columns.append({
             'id': value, 'name': value,
-            'deletable': True
+            'deletable': True,
+            'renamable': True,
         })
         return existing_columns, existing_data, list_of_names[0], {}, get_style_upload_block(True)
     if list_of_names is not None or (dash.callback_context.triggered[0]['prop_id'] == 'table.page_current' and page):
@@ -225,8 +226,8 @@ def show_table(n_open_upload, p_size, page, n_clicks, list_of_contents, list_of_
         # парсинг файла
         df = get_file(list_of_contents, list_of_names, first_column_as_headers, separator)
         df = df.iloc[page * int(p_size):(page + 1) * int(p_size)]
-        return [{"name": i, "id": i} for i in df.columns], df.to_dict('records'), \
-                                                                list_of_names[0], {}, get_style_upload_block(True)
+        return [{"name": i, "id": i, 'deletable': True, 'renamable': True}
+                for i in df.columns], df.to_dict('records'), list_of_names[0], {}, get_style_upload_block(True)
     return [], [], '', {'display': 'none'}, get_style_upload_block(True)
 
 
@@ -239,7 +240,11 @@ def show_edit_block(value):
 
 def show_page_slider(l, style):
     if l:
-        style.pop('display')
+        try:
+            style.pop('display')
+        except KeyError:
+            # Значит, в style уже нет display, продолжаем
+            pass
         return 'custom', 0, style
     if style:
         style['display'] = 'none'
@@ -337,11 +342,12 @@ def delete_graph(n, style):
     return {}
 
 
-def download_table(n, df, save_options, file_content, file_name, first_column_as_headers, separator, p_size, page):
+def download_table(n, df, columns, save_options, file_content, file_name, first_column_as_headers, separator, p_size, page):
     """
     Создаёт файл в директории "files" и возвращает кнопку для его загрузки
     :param n: n_clicks кнопки "save"
     :param df: table data
+    :param columns: изменённые (или нет) заголовки table
     :param save_options: checkbox_value сохранять ли файл полностью
     :param file_content: контент загруженного файла
     :param file_name: имя файла
@@ -353,10 +359,8 @@ def download_table(n, df, save_options, file_content, file_name, first_column_as
     """
     if df is None or not n:
         return [layout.build_download_button()]
-    print('DF', df)
+
     df = pd.DataFrame(df)
-    # Переворачиваем Dataframe, потому что считывается он в обратном порядке
-    df = df.iloc[:, ::-1]
 
     if first_column_as_headers and 1 in first_column_as_headers:
         first_column_as_headers = 1
@@ -364,21 +368,29 @@ def download_table(n, df, save_options, file_content, file_name, first_column_as
         first_column_as_headers = 0
     if not separator:
         separator = ';'
+    df_file = get_file(file_content, file_name, first_column_as_headers, separator)
 
+    old_columns = df_file.columns
+    new_columns = [column['name'] for column in columns]
+    _df = df
+    # Переворачиваем Dataframe, потому что считывается он в обратном порядке
+    df = df.iloc[:, ::-1]
+    df = df[old_columns]
+    if len(old_columns) != len(new_columns):
+        # Если был создан новый столбец, добавляем его в df
+        if len(old_columns) < len(new_columns):
+            for i in range(len(old_columns), len(new_columns)):
+                df[new_columns[i]] = _df[new_columns[i]]
+        # TODO: Если был удалён столбец
+        # else:
+        # .........
+        del _df
+    df.columns = new_columns
+    df_file.columns = new_columns[:len(old_columns)]
     if save_options and 'save-all' in save_options:
-        # Получение Dataframe из загруженного ранее файла
-        df_file = get_file(file_content, file_name, first_column_as_headers, separator)
-        columns_file = list(df_file.columns)
-        columns_table = list(df.columns)
-        # Если был создан новый столбец, добавляем его в df_file
-        if columns_file != columns_table:
-            if len(columns_file) < len(columns_table):
-                for i in range(len(columns_file), len(columns_table)):
-                    df_file[columns_table[i]] = [None] * len(df_file)
-        for j in range(0, int(p_size)):
-            # Пропуск заголовков для записи (уже записаны)
-            df_file.iloc[int(p_size)*int(page)+j] = df.to_dict('records')[j]
-        df = df_file
+        df = df[int(page)*int(p_size):int(page)*int(p_size)+int(p_size)].append(
+            df_file[int(page)*int(p_size)+int(p_size):], sort=False)
+
     df = df.where((pd.notnull(df)), '')  # changing Nan values
     filename = f"{uuid.uuid1()}"
     path = f".\\files\\{filename}.csv"
@@ -485,6 +497,7 @@ class Table(CallbackObj):
             ((Output('table-buttons', 'children'),
              [Input('btn-save-table', 'n_clicks')],
              [State('table', 'data'),
+              State('table', 'columns'),
               State('table-save-all-checkbox', 'value'),
               State('upload-data', 'contents'),
               State('upload-data', 'filename'),
