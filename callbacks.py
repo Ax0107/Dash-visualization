@@ -220,7 +220,7 @@ def show_table(n_open_upload, p_size, page, n_clicks, list_of_contents, list_of_
             del v_name, columns
         existing_columns.append({
             'id': value, 'name': value,
-            'renamable': True, 'deletable': True,
+            'renamable': True,
         })
         return existing_columns, existing_data, list_of_names[0], {}, get_style_upload_block(True)
     if list_of_names is not None or (dash.callback_context.triggered[0]['prop_id'] == 'table.page_current' and page):
@@ -234,7 +234,7 @@ def show_table(n_open_upload, p_size, page, n_clicks, list_of_contents, list_of_
         df = get_file(list_of_contents, list_of_names=list_of_names,
                       first_column_as_headers=first_column_as_headers, separator=separator)
         df = df.iloc[page * int(p_size):(page + 1) * int(p_size)]
-        return [{"name": i, "id": i, 'renamable': True, 'deletable': True}
+        return [{"name": i, "id": i, 'renamable': True}
                 for i in df.columns], df.to_dict('records'), list_of_names[0], {}, get_style_upload_block(True)
     return [], [], '', {'display': 'none'}, get_style_upload_block(True)
 
@@ -246,7 +246,7 @@ def show_edit_block(value):
     return {'display': 'none'}
 
 
-def show_page_slider(l, clicks_next, clicks_previous, tabledata, page_current, page_size, page_size_style):
+def show_page_slider(l, clicks_next, clicks_previous, page_size, tabledata, page_current, page_size_style):
     if l:
         try:
             page_size_style.pop('display')
@@ -254,10 +254,13 @@ def show_page_slider(l, clicks_next, clicks_previous, tabledata, page_current, p
             # Значит, в style уже нет display, продолжаем
             pass
         page = page_current
+        print(dash.callback_context.triggered[0]['prop_id'])
         if dash.callback_context.triggered[0]['prop_id'] == 'table-next.n_clicks':
             page += 1
         elif dash.callback_context.triggered[0]['prop_id'] == 'table-previous.n_clicks':
             page -= 1
+        elif dash.callback_context.triggered[0]['prop_id'] == 'page-size.value':
+            page = 0
         tabledata = get_file(tabledata)
         if page * int(page_size) + int(page_size) > len(tabledata):
             previous_btn_disabled = False
@@ -497,10 +500,10 @@ class Table(CallbackObj):
                ],
               [Input('upload-data', 'contents'),
                Input('table-next', 'n_clicks'),
-               Input('table-previous', 'n_clicks')],
+               Input('table-previous', 'n_clicks'),
+               Input('page-size', 'value')],
               [State('upload-data', 'contents'),
                State('table', 'page_current'),
-               State('page-size', 'value'),
                State('page-size', 'style')]), show_page_slider))
         self.val.append(
             (([Output('table', 'columns'), Output('table', 'data'), Output('table-filename', 'children'),
