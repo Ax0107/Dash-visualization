@@ -10,7 +10,7 @@ from ast import literal_eval
 import layout
 
 
-def get_file(list_of_contents, list_of_names, first_column_as_headers, separator):
+def get_file(list_of_contents, list_of_names=['csv'], first_column_as_headers=True, separator=';'):
     """
     Вспомогательная функция для чтения CSV
     :param list_of_contents: контент файла
@@ -58,7 +58,7 @@ def table_load_selected(selected_rows, show_selected_on_graph, content, filename
     :return: div-selected-data json
     """
     if show_selected_on_graph and content and selected_rows:
-        df = get_file(content, filename, f_header, separator)
+        df = get_file(content, list_of_names=filename, first_column_as_headers=f_header, separator=separator)
         data = df.to_dict('records')
         d = []
         # selected_rows = pd.DataFrame(selected_rows)
@@ -101,7 +101,7 @@ def plot_scatter(selected_points, filecontent, x_column, y_column, clicks_reset,
     # Для отслеживания модели поведения в соответсвии с ситуацией
     # (загрузка из div-selected-data или из выделенных данных на графике)
     graph_exec = 0
-    df = get_file(filecontent, filename, f_header, separator)
+    df = get_file(filecontent, list_of_names=filename, first_column_as_headers=f_header, separator=separator)
     if selected_points and dash.callback_context.triggered[0]['prop_id'] == 'div-selected-data.children':
         graph_exec = 1
         points = json.loads(selected_points)
@@ -210,10 +210,17 @@ def show_table(n_open_upload, p_size, page, n_clicks, list_of_contents, list_of_
         # TODO: Blackout for background when open block
         return [], [], '', {'display': 'none'}, get_style_upload_block(False)
     if n_clicks and dash.callback_context.triggered[0]['prop_id'] == 'btn-add-column.n_clicks':
+        if existing_data:
+            columns = [column['name'] for column in existing_columns]
+            i = 1
+            v_name = value
+            while value in columns:
+                value = v_name + "." + str(i)
+                i += 1
+            del v_name, columns
         existing_columns.append({
             'id': value, 'name': value,
-            'deletable': True,
-            'renamable': True,
+            'renamable': True, 'deletable': True,
         })
         return existing_columns, existing_data, list_of_names[0], {}, get_style_upload_block(True)
     if list_of_names is not None or (dash.callback_context.triggered[0]['prop_id'] == 'table.page_current' and page):
@@ -224,9 +231,10 @@ def show_table(n_open_upload, p_size, page, n_clicks, list_of_contents, list_of_
         if not separator:
             separator = ';'
         # парсинг файла
-        df = get_file(list_of_contents, list_of_names, first_column_as_headers, separator)
+        df = get_file(list_of_contents, list_of_names=list_of_names,
+                      first_column_as_headers=first_column_as_headers, separator=separator)
         df = df.iloc[page * int(p_size):(page + 1) * int(p_size)]
-        return [{"name": i, "id": i, 'deletable': True, 'renamable': True}
+        return [{"name": i, "id": i, 'renamable': True, 'deletable': True}
                 for i in df.columns], df.to_dict('records'), list_of_names[0], {}, get_style_upload_block(True)
     return [], [], '', {'display': 'none'}, get_style_upload_block(True)
 
@@ -238,19 +246,35 @@ def show_edit_block(value):
     return {'display': 'none'}
 
 
-def show_page_slider(l, style):
+def show_page_slider(l, clicks_next, clicks_previous, tabledata, page_current, page_size, page_size_style):
     if l:
         try:
-            style.pop('display')
+            page_size_style.pop('display')
         except KeyError:
             # Значит, в style уже нет display, продолжаем
             pass
-        return 'custom', 0, style
-    if style:
-        style['display'] = 'none'
+        page = page_current
+        if dash.callback_context.triggered[0]['prop_id'] == 'table-next.n_clicks':
+            page += 1
+        elif dash.callback_context.triggered[0]['prop_id'] == 'table-previous.n_clicks':
+            page -= 1
+        tabledata = get_file(tabledata)
+        if page * int(page_size) + int(page_size) > len(tabledata):
+            previous_btn_disabled = False
+            next_btn_disabled = True
+        elif page == 0:
+            previous_btn_disabled = True
+            next_btn_disabled = False
+        else:
+            previous_btn_disabled = False
+            next_btn_disabled = False
+
+        return 'native', page, page_size_style, next_btn_disabled, previous_btn_disabled
+    if page_size_style:
+        page_size_style['display'] = 'none'
     else:
-        style = {'display': 'none'}
-    return 'none', 0, style
+        page_size_style = {'display': 'none'}
+    return 'native', 0, page_size_style, False, True
 
 
 def disable_creation_more_than_one_graph(func):
@@ -368,7 +392,8 @@ def download_table(n, df, columns, save_options, file_content, file_name, first_
         first_column_as_headers = 0
     if not separator:
         separator = ';'
-    df_file = get_file(file_content, file_name, first_column_as_headers, separator)
+    df_file = get_file(file_content, list_of_names=filename,
+                       first_column_as_headers=first_column_as_headers, separator=separator)
 
     old_columns = df_file.columns
     new_columns = [column['name'] for column in columns]
@@ -401,7 +426,7 @@ def download_table(n, df, columns, save_options, file_content, file_name, first_
 def update_columns_in_new_trace_block(content, filename, f_header, separator):
     if content:
         # TODO: remove values that already selected in other selector options (needed, 'cuz options equal)
-        df = get_file(content, filename, f_header, separator)
+        df = get_file(content, list_of_names=filename, first_column_as_headers=f_header, separator=separator)
         columns = [{"label": i, "value": i} for i in df.columns]
         return columns, columns
     return [], []
@@ -466,9 +491,17 @@ class Table(CallbackObj):
         self.id = id
         self.val.append(
             (([Output('table', 'page_action'), Output('table', 'page_current'),
-               Output('page-size', 'style')],
-              [Input('upload-data', 'contents')],
-              [State('page-size', 'style')]), show_page_slider))
+               Output('page-size', 'style'),
+               Output('table-next', 'disabled'),
+               Output('table-previous', 'disabled'),
+               ],
+              [Input('upload-data', 'contents'),
+               Input('table-next', 'n_clicks'),
+               Input('table-previous', 'n_clicks')],
+              [State('upload-data', 'contents'),
+               State('table', 'page_current'),
+               State('page-size', 'value'),
+               State('page-size', 'style')]), show_page_slider))
         self.val.append(
             (([Output('table', 'columns'), Output('table', 'data'), Output('table-filename', 'children'),
                Output('table-info', 'style'), Output('upload-block', 'style')],

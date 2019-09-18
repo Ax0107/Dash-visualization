@@ -87,9 +87,20 @@ def table_info():
             html.H4('Имя файла:'),
             html.A('', id='table-filename'),
             html.Hr(),
-            html.H4('Размер страницы:'),
-            dcc.Input(id='page-size', type='number', value='5',
-                      style={'display': 'none', 'height': '40px'}),
+            dbc.Row([
+                dbc.Col([
+                    html.H4('Размер страницы:'),
+                    dcc.Input(id='page-size', type='number', value='5',
+                              style={'display': 'none', 'height': '40px'}),
+                ]),
+                dbc.Col([
+                    dbc.Button('next', id='table-next', n_clicks=0,
+                               style={'width': '100%', 'height': '40px'}),
+                    dbc.Button('previous', id='table-previous', n_clicks=0,
+                               style={'width': '100%', 'height': '40px'}),
+                ]),
+            ]),
+
             html.Hr(),
             dcc.Checklist(id='show_selected_on_graph',
                           options=[
@@ -147,7 +158,7 @@ def layout():
                         options=[
                             {"label": "Использовать первую строку, как заголовки", "value": 1},
                         ],
-                        values=[1],
+                        value=[1],
                         id="first-column-as-headers",
                     ),
                     html.Hr(),
