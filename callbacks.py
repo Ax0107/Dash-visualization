@@ -10,7 +10,7 @@ from ast import literal_eval
 import layout
 
 
-def get_file(list_of_contents, list_of_names=['csv'], first_column_as_headers=True, separator=';'):
+def get_file(list_of_contents, list_of_names=['csv'], first_column_as_headers=0, separator=';'):
     """
     Вспомогательная функция для чтения CSV
     :param list_of_contents: контент файла
@@ -220,7 +220,7 @@ def show_table(n_open_upload, p_size, page, n_clicks, list_of_contents, list_of_
             del v_name, columns
         existing_columns.append({
             'id': value, 'name': value,
-            'renamable': True,
+            'renamable': True, 'deletable': True,
         })
         return existing_columns, existing_data, list_of_names[0], {}, get_style_upload_block(True)
     if list_of_names is not None or (dash.callback_context.triggered[0]['prop_id'] == 'table.page_current' and page):
@@ -234,7 +234,7 @@ def show_table(n_open_upload, p_size, page, n_clicks, list_of_contents, list_of_
         df = get_file(list_of_contents, list_of_names=list_of_names,
                       first_column_as_headers=first_column_as_headers, separator=separator)
         df = df.iloc[page * int(p_size):(page + 1) * int(p_size)]
-        return [{"name": i, "id": i, 'renamable': True}
+        return [{"name": i, "id": i, 'renamable': True, 'deletable': True}
                 for i in df.columns], df.to_dict('records'), list_of_names[0], {}, get_style_upload_block(True)
     return [], [], '', {'display': 'none'}, get_style_upload_block(True)
 
@@ -246,7 +246,7 @@ def show_edit_block(value):
     return {'display': 'none'}
 
 
-def show_page_slider(l, clicks_next, clicks_previous, page_size, tabledata, page_current, page_size_style):
+def show_page_slider(l, clicks_next, clicks_previous, page_size, df, page_current, page_size_style):
     if l:
         try:
             page_size_style.pop('display')
@@ -254,15 +254,15 @@ def show_page_slider(l, clicks_next, clicks_previous, page_size, tabledata, page
             # Значит, в style уже нет display, продолжаем
             pass
         page = page_current
-        print(dash.callback_context.triggered[0]['prop_id'])
         if dash.callback_context.triggered[0]['prop_id'] == 'table-next.n_clicks':
             page += 1
         elif dash.callback_context.triggered[0]['prop_id'] == 'table-previous.n_clicks':
             page -= 1
         elif dash.callback_context.triggered[0]['prop_id'] == 'page-size.value':
             page = 0
-        tabledata = get_file(tabledata)
-        if page * int(page_size) + int(page_size) > len(tabledata):
+        df = get_file(df)
+        
+        if page * int(page_size) + int(page_size) > len(df):
             previous_btn_disabled = False
             next_btn_disabled = True
         elif page == 0:
@@ -369,6 +369,59 @@ def delete_graph(n, style):
     return {}
 
 
+def get_changed_table(df, columns, save_options, file_content, file_name,
+                      first_column_as_headers, separator, p_size, page):
+
+    if first_column_as_headers and 1 in first_column_as_headers:
+        first_column_as_headers = 1
+    else:
+        first_column_as_headers = 0
+    if not separator:
+        separator = ';'
+    df_file = get_file(file_content, list_of_names=file_name,
+                       first_column_as_headers=first_column_as_headers, separator=separator)
+    df = pd.DataFrame(df)
+
+    old_columns = list(df_file.columns)
+    new_columns = [column['name'] for column in columns]
+    edited_columns = [x for x in old_columns if x not in new_columns]
+    for column in edited_columns:
+        if column not in df.columns:
+            # Если user удалил строку, то удаляем её и из old_columns за ненадобностью
+            old_columns.pop(old_columns.index(column))
+
+    # Копируем df, чтобы не потерять созданные колонки, если таковые имеются
+    _df = df
+
+    # Задаём порядок, убираем удалённые колонки
+    df = df[old_columns]
+    df_file = df_file[old_columns]
+
+    # Задаём значения созданных колонок
+    for i in range(len(old_columns), len(new_columns)):
+        try:
+            _df[new_columns[i]]
+        except KeyError:
+            # Ошибка возникает, если в новой колонке нет данных
+            _df[new_columns[i]] = None
+        df[new_columns[i]] = _df[new_columns[i]]
+        df_file[new_columns[i]] = None
+    del _df
+
+    df.columns = new_columns
+    df_file.columns = new_columns
+    if save_options and 'save-all' in save_options:
+        # Отключение ложного срабатывания предупреждения
+        # (https://stackoverflow.com/questions/20625582/how-to-deal-with-settingwithcopywarning-in-pandas)
+        pd.options.mode.chained_assignment = None
+
+        df = df[int(page)*int(p_size):int(page)*int(p_size)+int(p_size)].append(
+            df_file[int(page)*int(p_size)+int(p_size):], sort=False)
+
+    df = df.where((pd.notnull(df)), '')  # changing Nan values
+    return df
+
+
 def download_table(n, df, columns, save_options, file_content, file_name, first_column_as_headers, separator, p_size, page):
     """
     Создаёт файл в директории "files" и возвращает кнопку для его загрузки
@@ -386,40 +439,8 @@ def download_table(n, df, columns, save_options, file_content, file_name, first_
     """
     if df is None or not n:
         return [layout.build_download_button()]
-
-    df = pd.DataFrame(df)
-
-    if first_column_as_headers and 1 in first_column_as_headers:
-        first_column_as_headers = 1
-    else:
-        first_column_as_headers = 0
-    if not separator:
-        separator = ';'
-    df_file = get_file(file_content, list_of_names=filename,
-                       first_column_as_headers=first_column_as_headers, separator=separator)
-
-    old_columns = df_file.columns
-    new_columns = [column['name'] for column in columns]
-    _df = df
-    # Переворачиваем Dataframe, потому что считывается он в обратном порядке
-    df = df.iloc[:, ::-1]
-    df = df[old_columns]
-    if len(old_columns) != len(new_columns):
-        # Если был создан новый столбец, добавляем его в df
-        if len(old_columns) < len(new_columns):
-            for i in range(len(old_columns), len(new_columns)):
-                df[new_columns[i]] = _df[new_columns[i]]
-        # TODO: Если был удалён столбец
-        # else:
-        # .........
-        del _df
-    df.columns = new_columns
-    df_file.columns = new_columns[:len(old_columns)]
-    if save_options and 'save-all' in save_options:
-        df = df[int(page)*int(p_size):int(page)*int(p_size)+int(p_size)].append(
-            df_file[int(page)*int(p_size)+int(p_size):], sort=False)
-
-    df = df.where((pd.notnull(df)), '')  # changing Nan values
+    df = get_changed_table(df, columns, save_options, file_content, file_name,
+                           first_column_as_headers, separator, p_size, page)
     filename = f"{uuid.uuid1()}"
     path = f".\\files\\{filename}.csv"
     df.to_csv(path, sep=separator, index=None)
