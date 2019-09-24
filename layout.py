@@ -77,7 +77,9 @@ def file_uploarer():
 def table():
     return html.Div(children=[
         dash_table.DataTable(id='table', page_action='custom', page_current=0, editable=True),
-        html.Div(id='div-selected-data', style={'display': 'none'})
+        html.Div(id='div-selected-data', style={'display': 'none'}),
+        html.Div(id='created-columns', children=[], style={'display': 'none'}),
+        html.Div(id='deleted-columns', children=[], style={'display': 'none'}),
         ])
 
 
@@ -116,6 +118,17 @@ def table_info():
                                style={'width': '100%', 'height': '40px'}),
                 ]),
             ], no_gutters=True),
+            html.Hr(),
+            dbc.Row([
+                dbc.Col([
+                    dcc.Dropdown(id='delete-column-selector', options=[],
+                                 value=[], style={'width': '90%', 'height': '40px'})
+                ]),
+                dbc.Col([
+                    dbc.Button('Удалить столбец', id='btn-delete-column', n_clicks=0,
+                               style={'width': '100%', 'height': '40px'}),
+                ]),
+            ]),
             html.Hr(),
             dbc.Button('Сохранить', id='btn-save-table', color='primary', style={'width': '100%'}),
             dcc.Checklist(id='table-save-all-checkbox',
