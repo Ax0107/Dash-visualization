@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import asyncio
 import json
-import logging
 import re
 import time
 import traceback
@@ -11,10 +10,9 @@ import redis
 from bs4 import BeautifulSoup
 
 from config.const import REDISHOST, REDISPORT, REDISMAXPULL, TIMEZONE, APPID
+from logger import logger
 
-LOG_LEVEL = logging.DEBUG
-logger = logging.getLogger('redis hook')
-logger.setLevel(LOG_LEVEL)
+logger = logger('Redis orm')
 
 r = redis.Redis(
     host=REDISHOST,
@@ -55,17 +53,27 @@ def prepare(redis_resp, utc, step):
                 logger.warning(traceback.format_exc())
                 logger.warning('Could not cast to numeric type:{column}'.format(column=column))
         df.index = pd.to_datetime(df['Time'], utc=utc, unit='s')
-        df.index = df.index.tz_convert(TIMEZONE)
+        if None:
 
-        if type(step) is str:
-            logger.debug('resampling with {} step'.format(step))
-            df = df.resample(step).median()
-        # df.index = df.index.astype('str')  # plotly converts time to UTC otherwise
+            df.index = df.index.tz_convert(TIMEZONE)
+
+            if type(step) is str:
+                logger.debug('resampling with {} step'.format(step))
+                df = df.resample(step).median()
+            # df.index = df.index.astype('str')  # plotly converts time to UTC otherwise
         return df
     else:
         logger.debug('Cache empty')
-        return None
+        return pd.DataFrame()
 
+
+def id_factory(attrs):
+    if attrs.get('TrackType') or attrs.get('TrackNumber'):
+        return [i for i in (attrs.get('TrackNumber', None), attrs.get('TrackType')) if i is not None]
+    if attrs.get('Resource'):
+        # return [i for i in (attrs.get('Resource', None).replace(' ', '_'), attrs.get('Task')) if i is not None]
+        return 'Status'
+    return
 
 class Storage(object):
 
@@ -95,7 +103,7 @@ class Storage(object):
 
 class RWrapper(object):
     """Interface for handling Redis-stored data
-    Redis is expected to contain
+    Redis is expected to store
     keys in id:key:type format
 
     Ids may be:
@@ -105,12 +113,12 @@ class RWrapper(object):
     Reserved ids :
     1-1000 for APPID's
 
-    Keys is expected to be nested, i.e. dash.figure1.trace.marker.color
+    Keys are expected to be nested, i.e. dash.figure1.trace.marker.color
     Keys should not overlap, for example there shouldn't be a key dash if there is a key dash.figure1.settings
 
     Supported types are
     int,float (bool values are converted to int)
-    str (preferrably not longer than 64 bytes)
+    str (preferrably < 64 bytes)
     list - for short lists, stored as string
     Rlist - redis lists, for storing large amounts of data
 
@@ -127,21 +135,25 @@ class RWrapper(object):
 
     rem() removes key. Same logic as val()
 
-    child() - getter for next element. Example:trace='trace1'; RWrapper(id).dash.figure1.child(trace).val()
+    child() - getter for next element. Example:trace=trace1; RWrapper(id).dash.figure1.child(trace).val()
 
-    get_children() - returns set of child objects
+    get_children() - returns set of child elements
 
     """
 
-    def __init__(self, uuid=None):
+    def __init__(self, uuid=None, force_check=False):
+        #logger.info('Started redis')
         self.uuid = uuid
         self.r = r
+        if force_check:
+            if not self.search(self.uuid):
+                raise ValueError("No keys with id={}".format(self.uuid))
 
     @staticmethod
     def loading(val=1):
+        key_loading = '{}:counterLoading:int'.format(APPID)
         if val > 0:
             RWrapper(APPID).counterLoading.set(int(RWrapper(APPID).counterLoading() or 0) + val)
-            RWrapper(APPID).loaded.set(0)
         else:
             RWrapper(APPID).counterLoading.set(0)
         return RWrapper(APPID).counterLoading()
@@ -157,11 +169,17 @@ class RWrapper(object):
             for i in bull.children:
                 if i.name:
                     attrs = i.attrs
-                    id = 'S_' +attrs.pop('TrackNumber', '0')
+                    tmp = ['S']
+                    idf = id_factory(attrs)
+                    # tmp.extend([i for i in (attrs.get('TrackNumber', None), attrs.get('TrackType')) if i is not None])
+                    if idf:
+                        tmp.extend(idf)
+                    id = '_'.join(tmp)
+
                     if int(i.attrs['PacketNumber']) == 0 or self.r.get(i.name + '.starttime:int') is None:
                         self.r.set(id + ':' + i.name + '.starttime:int', int(time.time() - float(i.attrs['Time'])))
                     try:
-                        attrs['Time'] = float(attrs['Time']) + float(self.r.get(id + ':' + i.name + '.starttime:int'))
+                        attrs['Time'] = float(attrs['Time'])# + float(self.r.get(id + ':' + i.name + '.starttime:int'))
                     except Exception as e:
                         logger.error(traceback.format_exc())
                         logger.error('cannot get start time!', e)
@@ -179,6 +197,7 @@ class RWrapper(object):
         :param end: To
         :return: list[start:end] of byte-strings
         """
+        #logger.debug(id)
         if end == 0:
             end = self.r.llen(id)
         if not start:
@@ -191,8 +210,8 @@ class RWrapper(object):
     def get_size(self, id):
         """
 
-        :param id: Redis key
-        :return: List size(element-vise)
+        :param id: Redis key (of list)
+        :return: Number of elements
         """
         return self.r.llen(id)
 
@@ -278,9 +297,12 @@ class RWrapper(object):
         return self.r.keys(search_string)
 
     def delete(self, keys):
-        # print(keys)
         for key in keys:
             self.r.delete(key)
+
+    def empty_stream(self,id):
+        self.r.ltrim(id,-2,-1)
+
 
     def __getattr__(self, name):
         setattr(self, name, Getter(self.uuid, name))
@@ -297,13 +319,19 @@ class Getter(RWrapper):
         self.__name__ = name
 
     def __comp__(self, d):
-        *_, name = self.__name__.split('.')
+        if '.' in self.__name__:
+            *_, name = self.__name__.split('.')
+        else:
+            name = self.__name__
         for key in d.keys():
             if key == name:
                 return d[key]
             elif isinstance(d[key], dict):
                 return self.__comp__(d[key])
         return {}
+
+    def child(self, name):
+        return self.__getattr__(name)
 
     def get_children(self, search_str=''):
         """
@@ -312,9 +340,6 @@ class Getter(RWrapper):
         """
         return set([getattr(self, i.decode().partition(self.uuid + ':' + self.__name__)[2].split('.')[1].split(':')[0]) \
                     for i in self.keys_list() if search_str in i.decode()])
-
-    def child(self, name):
-        return self.__getattr__(name)
 
     def val(self):
         """
@@ -338,7 +363,8 @@ class Getter(RWrapper):
                 if default:
                     return default
             else:
-                raise AttributeError('No such keys in Redis - {}:{}'.format(self.uuid, self.__name__))
+                logger.info(AttributeError('No such keys in Redis - {}:{}. Returning empty string'.format(self.uuid, self.__name__)))
+                return ''
 
     def keys_list(self):
         """
@@ -359,6 +385,10 @@ class Getter(RWrapper):
                     ':'.join((self.uuid, self.__name__)) + ':' + type(val).__name__,
                     type(val).__name__))
                 self.r.set(':'.join((self.uuid, self.__name__)) + ':' + type(val).__name__, val.__str__())
+
+    def getbyid(self):
+        return RWrapper(self.val(),force_check=True)
+
 
     def __getattr__(self, name):
         setattr(self, name, Getter(self.uuid, '.'.join((self.__name__, name))))

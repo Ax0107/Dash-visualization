@@ -1,9 +1,10 @@
-from dash.dependencies import Input, Output, State
 import dash
-from redis_handler import RWrapper, Storage
 import pandas as pd
+from dash.dependencies import Input, Output, State
 
 from logger import logger
+from redis_handler import RWrapper, Storage
+
 logger = logger('callbacks')
 
 
@@ -27,7 +28,7 @@ def update_figures(n, d, u, selected_figure):
     try:
         if isinstance(RW.dash(), dict):
             for i in RW.dash().keys():
-                if 'figure' in i:
+                if 'figure' in i and i not in figures:
                     counter_figures += 1
                     figures.append({'label': i, 'value': i})
     except AttributeError:
@@ -43,10 +44,20 @@ def update_figures(n, d, u, selected_figure):
     # Если мы создаём график (value = new figure id)
     elif dash.callback_context.triggered[0]['prop_id'] == 'create-graph.n_clicks':
         # Создаём новую фигуру в Redis
-        figure = 'figure{}'.format(counter_figures + 1)
+
+        # Получение минимального id для фигуры
+        existing_figures = RW.dash.get_children('figure')
+        existing_figures = [str(f.name.val()) for f in existing_figures]
+        idf = 1
+        figure = 'figure{}'.format(idf)
+        while figure in existing_figures:
+            figure = 'figure{}'.format(idf)
+            idf += 1
+
         RW.dash.set({figure: {'name': figure, 'graph_type': 'scatter'}})
         figures.append({'label': figure, 'value': figure})
         value = figure
+
     # Если мы обновяем figures, то просто возвращаем фигуры
     elif dash.callback_context.triggered[0]['prop_id'] == 'btn-update.n_clicks':
         value = None
@@ -74,7 +85,7 @@ def update_stream():
     :return: options for dropdown
     """
     streams = []
-    for i in RW.search("S_0:*:Rlist"):
+    for i in RW.search("S*:Rlist"):
         i = i.decode("utf-8")
         streams.append({'label': i.split(':')[1], 'value': i})
     return streams
@@ -87,7 +98,7 @@ def update_traces(traces, figure):
     :param traces: выбранные visible-traces
     :return: options for dropdown
     """
-    if figure != [] and figure is not None and traces is not None and traces != []:
+    if figure and traces:
         figure_children = RW.dash.child(figure).val()
         existing_traces = [figure_children[i]['name']
                            for i in figure_children.keys() if 'trace' in i and i != 'traces']
@@ -98,7 +109,7 @@ def update_traces(traces, figure):
             if i not in existing_traces and isinstance(i, dict):
                 RW.dash.child(figure).child(i).remove()
 
-        for i in range(0, len(traces)):
+        for i in range(len(traces)):
             # Сохранение всех выбранных trace
             RW.dash.child(figure).set({
                 'trace{}'.format(i): {
@@ -108,9 +119,8 @@ def update_traces(traces, figure):
             )
         # Обновляем значение переменной figure_children с новыми traces
         figure_children = RW.dash.child(figure).val()
-        # print(figure_children)
         return [{'label': '{} ({})'.format(figure_children[i]['name'], i), 'value': i}
-                for i in figure_children.keys() if i not in ['traces', 'name', 'graph_type', 'stream']]
+                for i in figure_children.keys() if i not in ['traces', 'name', 'name_id', 'graph_type', 'stream']]
     return []
 
 
@@ -121,7 +131,6 @@ def get_dict_from_str(color):
     :return: rgb-dict
     """
     if isinstance(color, str):
-        # print('C:', color, color[5:-1])
         color_splited = color[5:-1].split(',')
         try:
             color = {'r': int(color_splited[0]), 'g': int(color_splited[1]), 'b': int(color_splited[2]), 'a': int(color_splited[3])}
@@ -154,7 +163,8 @@ def update_settings(selected_traces, n, trace_name, lines_type_options, lines_ty
                          {'label': 'Маркеры и линии', 'value': 'lines+markers'}]
     if selected_figure != [] and selected_figure is not None and selected_traces != [] and selected_traces is not None:
         trace_settings = RW.dash.child(selected_figure).child(selected_traces).val()
-        logger.debug('Figure {} was load'.format(selected_figure))
+
+        logger.debug('Figure {} was loaded'.format(selected_figure))
         try:
             figure_settings = RW.dash.child(selected_figure).val()
         except AttributeError:
@@ -165,16 +175,16 @@ def update_settings(selected_traces, n, trace_name, lines_type_options, lines_ty
             figure_type = figure_settings
         trace_name = trace_settings.get('name')
         trace_marker = trace_settings.get('marker', {'color': DEFAULT_COLOR, 'width': 5})
-        trace_marker_color = {'rgb': trace_marker.get('color', DEFAULT_COLOR)}
-        trace_marker_color = {'rgb': get_dict_from_str(trace_marker_color['rgb'])}
+        trace_marker_color = trace_marker.get('color', DEFAULT_COLOR)
+        trace_marker_color = {'rgb': get_dict_from_str(trace_marker_color)}
         trace_marker_size = trace_marker.get('size', 10)
 
         if figure_type.lower() in [None, 'scatter', 'trajectory']:
             trace_lines_type = trace_settings.get('mode', 'lines+markers')
 
             trace_line = trace_settings.get('line', {'color': DEFAULT_COLOR, 'width': 5})
-            trace_line_color = {'rgb': trace_line.get('color', DEFAULT_COLOR)}
-            trace_line_color = {'rgb': get_dict_from_str(trace_line_color['rgb'])}
+            trace_line_color = trace_line.get('color', DEFAULT_COLOR)
+            trace_line_color = {'rgb': get_dict_from_str(trace_line_color)}
             trace_line_width = trace_line.get('width', 5)
 
             return trace_name, trace_line_color, trace_marker_color, trace_line_width, \
@@ -183,7 +193,7 @@ def update_settings(selected_traces, n, trace_name, lines_type_options, lines_ty
                          {'label': 'Линии', 'value': 'lines'},
                          {'label': 'Маркеры и линии', 'value': 'lines+markers'}]
 
-        elif figure_type == 'bar':
+        elif figure_type.lower() == 'bar':
             trace_lines_type = 'vertical'
             return trace_name, trace_marker_color, None, trace_marker_size, None, trace_lines_type, \
                 {'display': 'none'}, {'display': 'none'}, \
@@ -210,20 +220,16 @@ def save_settings_to_redis(n, visible_traces, selected_figure, graph_type, selec
     :param lines_type: тип линий графика
     :return: alert
     """
-    # if list(set(map(lambda i: i not in [None, []], [selected_figure, selected_stream, visible_traces])))[0]:
-    if selected_figure not in [None, []]:
+    if selected_figure:
         if line_color in [{'rgb': DEFAULT_COLOR}, 'rgba(255,100,100,1)']:
             line_color = None
-            RW.dash.child(selected_figure).child(selected_traces).line.color.rem()
         if marker_color in [{'rgb': DEFAULT_COLOR}, 'rgba(255,100,100,1)']:
             marker_color = None
-            RW.dash.child(selected_figure).child(selected_traces).marker.color.rem()
         if marker_size == 10:
             marker_size = None
-            RW.dash.child(selected_figure).child(selected_traces).marker.size.rem()
         if line_width == 5:
             line_width = None
-            RW.dash.child(selected_figure).child(selected_traces).line.width.rem()
+
         # Создаём словарь нужного формата
         settings = to_settings_type(trace_name, line_color, marker_color, line_width,
                                     marker_size, lines_type, selected_figure, graph_type,
@@ -233,31 +239,27 @@ def save_settings_to_redis(n, visible_traces, selected_figure, graph_type, selec
             # Создаём ключ для того, чтобы отловить сохранение настроек и перезагрузить графики
             settings.update({'dash_reload': True})
 
-        try:
-            figure_children = RW.dash.child(selected_figure).val()
-            existing_traces = figure_children.get('traces', [])
-            # Удаление всех прошлых ключей traces
-            for i in figure_children.keys():
-                if 'trace' in i and i != 'traces':
-                    if figure_children[i]['name_id'] not in existing_traces:
-                        RW.dash.child(selected_figure).child(i).rem()
-            traces = []
-            for i in range(0, len(visible_traces)):
-                # Сохранение всех выбранных trace
-                RW.dash.child(selected_figure).set({
-                    'trace{}'.format(i): {
-                        'name': visible_traces[i],
-                        'name_id': visible_traces[i]}
-                }
-                )
-                traces.append(visible_traces[i])
-            RW.dash.child(selected_figure).traces.set(traces)
-            RW.dash.set(settings)
-            if dash.callback_context.triggered[0]['prop_id'] == 'btn-save.n_clicks':
-                return [True, 'success', 'Настройки сохранены']
-        except:
-            if dash.callback_context.triggered[0]['prop_id'] == 'btn-save.n_clicks':
-                return [True, 'danger', 'Произошла ошибка при сохранении данных. Настройки не сохранены']
+        traces = RW.dash.child(selected_figure).get_children('trace')
+        t = RW.dash.child(selected_figure).traces.val()
+        _ = [trace.rem() for trace in traces if 'traces' not in str(trace) and trace.val()['name_id'] not in t]
+
+        traces = []
+        for i in range(len(visible_traces)):
+            # Сохранение всех выбранных trace
+            RW.dash.child(selected_figure).set({
+                'trace{}'.format(i): {
+                    'name': visible_traces[i],
+                    'name_id': visible_traces[i]}
+            }
+            )
+            traces.append(visible_traces[i])
+        settings[selected_figure]['traces'] = traces
+        RW.dash.set(settings)
+        if dash.callback_context.triggered[0]['prop_id'] == 'btn-save.n_clicks':
+            return [True, 'success', 'Настройки сохранены']
+        # except:
+        #     if dash.callback_context.triggered[0]['prop_id'] == 'btn-save.n_clicks':
+        #         return [True, 'danger', 'Произошла ошибка при сохранении данных. Настройки не сохранены']
     return [False, 'success', '']
 
 
@@ -280,17 +282,17 @@ def to_settings_type(new_trace_name, line_color, marker_color, line_width,
     :return: settings (dict)
     """
     setting = {selected_figure: {}}
-    if selected_stream not in [None, []]:
+    if selected_stream:
         setting[selected_figure].update({'stream': selected_stream})
-    if graph_type not in [None, []]:
+    if graph_type:
         setting[selected_figure].update({'graph_type': graph_type})
-    if selected_traces not in [None, []]:
+    if selected_traces:
         try:
             trace_name = RW.dash.child(selected_figure).child(selected_traces).val().get('name', new_trace_name)
         except AttributeError:
             trace_name = new_trace_name
         setting[selected_figure].update({selected_traces: {}})
-        if line_color is not None:
+        if line_color:
             # Преобразование формата получаемого color_picker в rgb-string
             try:
                 line_color = 'rgba({},{},{},{})'.format(line_color['rgb']['r'], line_color['rgb']['g'],
@@ -304,7 +306,7 @@ def to_settings_type(new_trace_name, line_color, marker_color, line_width,
             setting[selected_figure].update({selected_traces: {
                 'line': {'color': line_color}}})
 
-        if line_width is not None:
+        if line_width:
             if setting[selected_figure][selected_traces].get('line') is not None:
                 setting[selected_figure][selected_traces]['line'].update({'width': line_color})
             else:
@@ -312,7 +314,7 @@ def to_settings_type(new_trace_name, line_color, marker_color, line_width,
                                 'line': {'width': line_color}}})
 
         if graph_type.lower() in ['scatter', 'trajectory']:
-            if marker_color is not None:
+            if marker_color:
                 # Преобразование формата получаемого color_picker в rgb-string
                 try:
                     marker_color = 'rgba({},{},{},{})'.format(marker_color['rgb']['r'], marker_color['rgb']['g'],
@@ -326,8 +328,8 @@ def to_settings_type(new_trace_name, line_color, marker_color, line_width,
                 setting[selected_figure][selected_traces].update({
                     'marker': {'color': marker_color}})
 
-            if marker_size is not None:
-                if setting[selected_figure][selected_traces].get('marker') is not None:
+            if marker_size:
+                if setting[selected_figure][selected_traces].get('marker'):
                     setting[selected_figure][selected_traces]['marker'].update({'size': marker_size})
                 else:
                     setting[selected_figure].update({selected_traces: {
@@ -394,7 +396,10 @@ def load_settings_for_figure_block(figure):
         traces = []
         for i in figure_settings.keys():
             if 'trace' in i:
-                traces.append(figure_settings.get(i).get('name'))
+                try:
+                    traces.append(figure_settings.get(i).get('name'))
+                except:
+                    print('Got list - traces')
         print(traces)
         graph_type = figure_settings.get('graph_type', 'scatter').lower()
         return {}, graph_type, stream_options, stream_value, traces, None
@@ -511,4 +516,3 @@ class SettingsPanel(CallbackObj):
                State('global-input-line-width', 'value'),
                State('global-input-marker-size', 'value'),
                State('global-lines-type', 'value')]), save_settings_to_redis))
-
