@@ -210,7 +210,9 @@ def show_table(n_open_upload, file_content, next_n, previous_n,
 
     def get_delete_column_selector_options(columns):
         if columns:
-            return [{'label': i['name'], 'value': i['name']} for i in columns]
+            if 'name' in columns[0]:
+                columns = [column['name'] for column in columns]
+            return [{'label': i, 'value': i} for i in columns]
         return []
 
     if n_open_upload and dash.callback_context.triggered[0]['prop_id'] == 'btn-open-upload-block.n_clicks':
@@ -246,7 +248,8 @@ def show_table(n_open_upload, file_content, next_n, previous_n,
         for i in range(len(columns)):
             if delete_column_selector_value == columns[i]['name']:
                 df = pd.DataFrame(df)
-                df.drop(columns[i]['name'], axis=1, inplace=True)
+                if columns[i]['name'] in df.columns:
+                    df.drop(columns[i]['name'], axis=1, inplace=True)
                 columns.pop(i)
                 df = df.to_dict('records')
                 break
@@ -260,16 +263,15 @@ def show_table(n_open_upload, file_content, next_n, previous_n,
 
     elif file_name is not None or (dash.callback_context.triggered[0]['prop_id'] == 'table.page_current' and page):
         if df:
-
-            _, df = get_changed_table(df, columns, ['save-all'], file_content, file_name,
-                                      first_column_as_headers, separator, p_size, page)
+            df = get_changed_table(df, columns, ['save-all'], file_content, file_name,
+                                   first_column_as_headers, separator, p_size, page, created_columns, deleted_columns)
         else:
             # парсинг файла
             first_column_as_headers, separator = get_normal_settings(first_column_as_headers, separator)
             df = get_file(file_content, list_of_names=file_name,
                           first_column_as_headers=first_column_as_headers, separator=separator)
         df = df.iloc[page * int(p_size):(page + 1) * int(p_size)]
-        delete_column_selector_options = get_delete_column_selector_options(columns)
+        delete_column_selector_options = get_delete_column_selector_options(list(df.columns))
         return [{"name": i, "id": i, 'renamable': True}
                 for i in df.columns], df.to_dict('records'), \
                file_name[0], {}, get_style_upload_block(True), created_columns, str(deleted_columns), \
@@ -420,6 +422,21 @@ def get_normal_settings(first_column_as_headers, separator):
 
 def get_changed_table(df, columns, save_options, file_content, file_name,
                       first_column_as_headers, separator, p_size, page, created_columns=None, deleted_columns=None):
+    """
+    Отдаёт изменённую таблицу (с измен. колонками)
+    :param df: текущая таблица
+    :param columns: df.columns
+    :param save_options: сохранять ли файл целиком
+    :param file_content: контент файла
+    :param file_name: название загруженного файла
+    :param first_column_as_headers: использовать ли первую строка как заголовки
+    :param separator: разделитель файла
+    :param p_size: размер страницы
+    :param page: текущая страница
+    :param created_columns: созданные колонки
+    :param deleted_columns: удалённые колонки
+    :return: changed df
+    """
     first_column_as_headers, separator = get_normal_settings(first_column_as_headers, separator)
     df_file = get_file(file_content, list_of_names=file_name,
                        first_column_as_headers=first_column_as_headers, separator=separator)
@@ -434,7 +451,6 @@ def get_changed_table(df, columns, save_options, file_content, file_name,
         for i in old_columns:
             new_columns[i] = i
 
-        changed_names = {}
         if created_columns:
             created_columns = literal_eval(created_columns)
         else:
@@ -449,38 +465,46 @@ def get_changed_table(df, columns, save_options, file_content, file_name,
 
         for d in deleted_columns:
             new_columns[d] = 'DELETED'
+        old_columns = []
+        for i in new_columns.keys():
+            if new_columns[i] == 'DELETED' or new_columns[i] != i:
+                continue
+            old_columns.append(new_columns[i])
 
         # Получение изменённых имён колонок
-        # (Логика: если i < len(old_columns), то имя колонки изменено. Иначе - она создана.)
-        for i in range(0, len(columns)-len(created_columns)):
-            if columns[i] not in old_columns and columns[i] not in deleted_columns and columns[i] not in created_columns:
-                changed_names[old_columns[i]] = columns[i]
+        for i in range(0, len(columns) - len(created_columns)):
+            if columns[i] not in old_columns and columns[i] not in deleted_columns \
+                    and columns[i] not in created_columns:
                 new_columns[old_columns[i]] = columns[i]
 
-        print(new_columns)
-
-        # Задаём порядок колонок (+ убираем удалённые)
+        # Задаём порядок колонок (убираем удалённые)
         df_file = df_file[old_columns]
         df = df_file[int(page) * int(p_size):int(page) * int(p_size) + int(p_size)]
-        df.columns = old_columns
-        df_file.columns = old_columns
-        # Добавляем созданные колонки в df
-        for i in created_columns:
-            df[i] = _df[i]
-            df_file[i] = None
-        # print('\n\n\n', df_file.head(5), '\n', df.head(5), '\n', _df.head())
-        # Меняем имена
         for i in range(len(old_columns)):
-            if old_columns[i] in changed_names.keys():
-                old_columns[i] = changed_names[old_columns[i]]
+            if new_columns[old_columns[i]] != old_columns[i]:
+                old_columns[i] = new_columns[old_columns[i]]
+
+        df.columns = old_columns
+        _df.columns = old_columns
+        df_file.columns = old_columns
+
+        # Добавляем созданные колонки в df, изменяем имена
+        keys = list(new_columns.keys())
+        for i in range(len(new_columns)):
+            if new_columns[keys[i]] == 'CREATED':
+                df[keys[i]] = _df[keys[i]]
+                df_file[keys[i]] = None
+            elif new_columns[keys[i]] != 'DELETED':
+                old_columns[old_columns.index(new_columns[keys[i]])] = new_columns[keys[i]]
+
         df.columns = old_columns + created_columns
+        _df.columns = old_columns + created_columns
+        df[int(page)*int(p_size):int(page)*int(p_size)+int(p_size)] = _df
         df_file.columns = old_columns + created_columns
-        # print('NEW COLUMNS', old_columns + created_columns, ' WAS', list(df.columns))
         df = df_file[:int(page)*int(p_size)].append(
             df.append(df_file[int(page)*int(p_size)+int(p_size):]), sort=False)
-
     df = df.where((pd.notnull(df)), '')  # changing Nan values
-    return df, df_file
+    return df
 
 
 def download_table(n, df, columns, save_options, file_content, file_name,
@@ -501,7 +525,7 @@ def download_table(n, df, columns, save_options, file_content, file_name,
     """
     if df is None or not n:
         return [layout.build_download_button()]
-    df, _ = get_changed_table(df, columns, save_options, file_content, file_name,
+    df = get_changed_table(df, columns, save_options, file_content, file_name,
                               first_column_as_headers, separator, p_size, page, created_columns, deleted_columns)
     first_column_as_headers, separator = get_normal_settings(first_column_as_headers, separator)
     filename = f"{uuid.uuid1()}"
