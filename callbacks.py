@@ -485,7 +485,6 @@ def get_changed_table(df, columns, save_options, file_content, file_name,
                 old_columns[i] = new_columns[old_columns[i]]
 
         df.columns = old_columns
-        _df.columns = old_columns
         df_file.columns = old_columns
 
         # Добавляем созданные колонки в df, изменяем имена
@@ -498,11 +497,9 @@ def get_changed_table(df, columns, save_options, file_content, file_name,
                 old_columns[old_columns.index(new_columns[keys[i]])] = new_columns[keys[i]]
 
         df.columns = old_columns + created_columns
-        _df.columns = old_columns + created_columns
-        df[int(page)*int(p_size):int(page)*int(p_size)+int(p_size)] = _df
         df_file.columns = old_columns + created_columns
-        df = df_file[:int(page)*int(p_size)].append(
-            df.append(df_file[int(page)*int(p_size)+int(p_size):]), sort=False)
+        df_file.loc[int(page)*int(p_size):int(page)*int(p_size)+int(p_size)-1] = df
+        df = df_file
     df = df.where((pd.notnull(df)), '')  # changing Nan values
     return df
 
