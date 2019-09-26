@@ -443,58 +443,60 @@ def get_changed_table(df, columns, save_options, file_content, file_name,
     columns = [column['name'] for column in columns]
     print(columns)
     df = pd.DataFrame(df)
+    # Сохраняем таблицу
+    # (в ней могут быть новые колонки, изменённые данные, которые при дальнейших манипуляциях пропадут)
+    _df = df
+    old_columns = list(df_file.columns)
+    new_columns = {}
+    for i in old_columns:
+        new_columns[i] = i
+
+    if created_columns:
+        created_columns = literal_eval(created_columns)
+    else:
+        created_columns = []
+    if deleted_columns:
+        deleted_columns = literal_eval(deleted_columns)
+    else:
+        deleted_columns = []
+
+    for i in created_columns:
+        new_columns[i] = 'CREATED'
+
+    for d in deleted_columns:
+        new_columns[d] = 'DELETED'
+
+    old_columns = []
+    changed_columns = []
+    for i in new_columns.keys():
+        if new_columns[i] == 'DELETED':
+            continue
+        elif new_columns[i] == 'CREATED':
+            df_file[i] = None
+            changed_columns.append(i)
+        else:
+            changed_columns.append(new_columns[i])
+        old_columns.append(i)
+
+    # Получение изменённых имён колонок
+    for i in range(0, len(columns) - len(created_columns)):
+        if columns[i] not in old_columns and columns[i] not in deleted_columns \
+                and columns[i] not in created_columns:
+            new_columns[old_columns[i]] = columns[i]
+            print(changed_columns[i], '->', columns[i])
+            changed_columns[i] = columns[i]
+
+    print(new_columns)
+
+    df = df[old_columns]
+    df.columns = changed_columns
+
     if save_options and 'save-all' in save_options:
-        # Сохраняем таблицу
-        # (в ней могут быть новые колонки, изменённые данные, которые при дальнейших манипуляциях пропадут)
-        _df = df
-        old_columns = list(df_file.columns)
-        new_columns = {}
-        for i in old_columns:
-            new_columns[i] = i
-
-        if created_columns:
-            created_columns = literal_eval(created_columns)
-        else:
-            created_columns = []
-        if deleted_columns:
-            deleted_columns = literal_eval(deleted_columns)
-        else:
-            deleted_columns = []
-
-        for i in created_columns:
-            new_columns[i] = 'CREATED'
-
-        for d in deleted_columns:
-            new_columns[d] = 'DELETED'
-
-        old_columns = []
-        changed_columns = []
-        for i in new_columns.keys():
-            if new_columns[i] == 'DELETED':
-                continue
-            elif new_columns[i] == 'CREATED':
-                df_file[i] = None
-                changed_columns.append(i)
-            else:
-                changed_columns.append(new_columns[i])
-            old_columns.append(i)
-
-        # Получение изменённых имён колонок
-        for i in range(0, len(columns) - len(created_columns)):
-            if columns[i] not in old_columns and columns[i] not in deleted_columns \
-                    and columns[i] not in created_columns:
-                new_columns[old_columns[i]] = columns[i]
-                print(changed_columns[i], '->', columns[i])
-                changed_columns[i] = columns[i]
-
-        print(new_columns)
-
         df_file = df_file[old_columns]
-        df = df[old_columns]
         df_file.columns = changed_columns
-        df.columns = changed_columns
         df_file.loc[int(page)*int(p_size):int(page)*int(p_size)+int(p_size)-1] = df
         df = df_file
+
     df = df.where((pd.notnull(df)), '')  # changing Nan values
     return df
 
