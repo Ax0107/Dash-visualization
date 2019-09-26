@@ -89,6 +89,8 @@ def table_info():
             html.H4('Имя файла:'),
             html.A('', id='table-filename'),
             html.Hr(),
+            html.H4('Текущая страница:'),
+            html.A('', id='current-page-text'),
             dbc.Row([
                 dbc.Col([
                     html.H4('Размер страницы:'),

@@ -199,7 +199,9 @@ def show_table(n_open_upload, file_content, next_n, previous_n,
     :param df: данные табницы
     :param first_column_as_headers: использовать ли первую строку, как заголовок
     :param separator: разделитель для загрузки файла
-    :return: table data
+    :return: table_columns, table_data, filename (для layout), current-page (для layout),
+             table-info.style, upload-block.style, created-columns (невидимый div),
+             deleted-columns (невидимый div), delete-column-selector.options
     """
     def get_style_upload_block(is_invisible=False):
         # # # Getting style for upload block # # #
@@ -218,7 +220,7 @@ def show_table(n_open_upload, file_content, next_n, previous_n,
     if n_open_upload and dash.callback_context.triggered[0]['prop_id'] == 'btn-open-upload-block.n_clicks':
         # TODO: Blackout for background when open block
         delete_column_selector_options = get_delete_column_selector_options(columns)
-        return [], [], '', {'display': 'none'}, get_style_upload_block(False), \
+        return [], [], '', page, {'display': 'none'}, get_style_upload_block(False), \
                created_columns, str(deleted_columns), delete_column_selector_options
     if n_clicks and dash.callback_context.triggered[0]['prop_id'] == 'btn-add-column.n_clicks':
         if df:
@@ -239,7 +241,7 @@ def show_table(n_open_upload, file_content, next_n, previous_n,
         created_columns.append(value)
         # обновляем selector options
         delete_column_selector_options = get_delete_column_selector_options(columns)
-        return columns, df, file_name[0], {}, get_style_upload_block(True),\
+        return columns, df, file_name[0], page, {}, get_style_upload_block(True),\
                str(created_columns), str(deleted_columns), delete_column_selector_options
 
     elif delete_columns_n_clicks and delete_column_selector_value \
@@ -258,7 +260,7 @@ def show_table(n_open_upload, file_content, next_n, previous_n,
         deleted_columns = literal_eval(deleted_columns)
         deleted_columns.append(delete_column_selector_value)
 
-        return columns, df, file_name[0], {}, get_style_upload_block(True), \
+        return columns, df, file_name[0], page, {}, get_style_upload_block(True), \
                 str(created_columns), str(deleted_columns), delete_column_selector_options
 
     elif file_name is not None or (dash.callback_context.triggered[0]['prop_id'] == 'table.page_current' and page):
@@ -274,10 +276,10 @@ def show_table(n_open_upload, file_content, next_n, previous_n,
         delete_column_selector_options = get_delete_column_selector_options(list(df.columns))
         return [{"name": i, "id": i, 'renamable': True}
                 for i in df.columns], df.to_dict('records'), \
-               file_name[0], {}, get_style_upload_block(True), created_columns, str(deleted_columns), \
-               delete_column_selector_options
+            file_name[0], page, {}, get_style_upload_block(True), created_columns, str(deleted_columns), \
+            delete_column_selector_options
 
-    return [], [], '', {'display': 'none'}, get_style_upload_block(True), created_columns, str(deleted_columns), []
+    return [], [], '', '', {'display': 'none'}, get_style_upload_block(True), created_columns, str(deleted_columns), []
 
 
 def show_edit_block(value):
@@ -441,7 +443,6 @@ def get_changed_table(df, columns, save_options, file_content, file_name,
     df_file = get_file(file_content, list_of_names=file_name,
                        first_column_as_headers=first_column_as_headers, separator=separator)
     columns = [column['name'] for column in columns]
-    print(columns)
     df = pd.DataFrame(df)
     # Сохраняем таблицу
     # (в ней могут быть новые колонки, изменённые данные, которые при дальнейших манипуляциях пропадут)
@@ -520,7 +521,7 @@ def download_table(n, df, columns, save_options, file_content, file_name,
     if df is None or not n:
         return [layout.build_download_button()]
     df = get_changed_table(df, columns, save_options, file_content, file_name,
-                              first_column_as_headers, separator, p_size, page, created_columns, deleted_columns)
+                           first_column_as_headers, separator, p_size, page, created_columns, deleted_columns)
     first_column_as_headers, separator = get_normal_settings(first_column_as_headers, separator)
     filename = f"{uuid.uuid1()}"
     path = f".\\files\\{filename}.csv"
@@ -610,6 +611,7 @@ class Table(CallbackObj):
 
         self.val.append(
             (([Output('table', 'columns'), Output('table', 'data'), Output('table-filename', 'children'),
+               Output('current-page-text', 'children'),
                Output('table-info', 'style'), Output('upload-block', 'style'),
                Output('created-columns', 'children'), Output('deleted-columns', 'children'),
                Output('delete-column-selector', 'options')
