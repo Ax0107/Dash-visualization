@@ -484,6 +484,8 @@ def get_changed_table(df, columns, save_options, file_content, file_name,
             if columns[i] not in old_columns and columns[i] not in deleted_columns \
                     and columns[i] not in created_columns:
                 new_columns[old_columns[i]] = columns[i]
+                print(changed_columns[i], '->', columns[i])
+                changed_columns[i] = columns[i]
 
         print(new_columns)
 
