@@ -180,6 +180,14 @@ def select_on_table_from_graph(points, table_data, y_column, x_column):
         return table_points
     return []
 
+def open_upload_block(content, n, is_open):
+    style = {}
+    if content:
+        style = {}
+    else:
+        style = {'display': 'none'}
+    return style, not is_open
+
 
 def show_table(n_open_upload, file_content, next_n, previous_n, 
                p_size, page, n_clicks, delete_columns_n_clicks, file_name,
@@ -203,12 +211,6 @@ def show_table(n_open_upload, file_content, next_n, previous_n,
              table-info.style, upload-block.style, created-columns (невидимый div),
              deleted-columns (невидимый div), delete-column-selector.options
     """
-    def get_style_upload_block(is_invisible=False):
-        # # # Getting style for upload block # # #
-        if is_invisible:
-            return {'display': 'none'}
-        else:
-            return {'width': '60rem'}
 
     def get_delete_column_selector_options(columns):
         if columns:
@@ -222,7 +224,7 @@ def show_table(n_open_upload, file_content, next_n, previous_n,
     if n_open_upload and dash.callback_context.triggered[0]['prop_id'] == 'btn-open-upload-block.n_clicks':
         # TODO: Blackout for background when open block
         delete_column_selector_options = get_delete_column_selector_options(columns)
-        return [], [], '', page, {'display': 'none'}, get_style_upload_block(False), \
+        return [], [], '', page, \
                created_columns, str(deleted_columns), delete_column_selector_options
     if n_clicks and dash.callback_context.triggered[0]['prop_id'] == 'btn-add-column.n_clicks':
         if df:
@@ -243,7 +245,7 @@ def show_table(n_open_upload, file_content, next_n, previous_n,
         created_columns.append(value)
         # обновляем selector options
         delete_column_selector_options = get_delete_column_selector_options(columns)
-        return columns, df, file_name[0], page, {}, get_style_upload_block(True),\
+        return columns, df, file_name[0], page, \
                str(created_columns), str(deleted_columns), delete_column_selector_options
 
     elif delete_columns_n_clicks and delete_column_selector_value \
@@ -270,7 +272,7 @@ def show_table(n_open_upload, file_content, next_n, previous_n,
         for d_c in delete_column_selector_value:
             deleted_columns.append(d_c)
 
-        return columns, df, file_name[0], page, {}, get_style_upload_block(True), \
+        return columns, df, file_name[0], page, \
                 str(created_columns), str(deleted_columns), delete_column_selector_options
 
     elif file_name is not None or (dash.callback_context.triggered[0]['prop_id'] == 'table.page_current' and page):
@@ -287,10 +289,10 @@ def show_table(n_open_upload, file_content, next_n, previous_n,
         delete_column_selector_options = get_delete_column_selector_options(list(df.columns))
         return [{"name": i, "id": i, 'renamable': True}
                 for i in df.columns], df.to_dict('records'), \
-            file_name[0], page, {}, get_style_upload_block(True), created_columns, str(deleted_columns), \
+            file_name[0], page, created_columns, str(deleted_columns), \
             delete_column_selector_options
 
-    return [], [], '', '', {'display': 'none'}, get_style_upload_block(True), created_columns, str(deleted_columns), []
+    return [], [], '', '', created_columns, str(deleted_columns), []
 
 
 def show_edit_block(value):
@@ -626,7 +628,6 @@ class Table(CallbackObj):
         self.val.append(
             (([Output('table', 'columns'), Output('table', 'data'), Output('table-filename', 'children'),
                Output('current-page-text', 'children'),
-               Output('table-info', 'style'), Output('upload-block', 'style'),
                Output('created-columns', 'children'), Output('deleted-columns', 'children'),
                Output('delete-column-selector', 'options')
                ],
@@ -649,6 +650,11 @@ class Table(CallbackObj):
                State('deleted-columns', 'children'),
                State('delete-column-selector', 'value'),
                State('delete-column-selector', 'options')]), show_table))
+        self.val.append(
+            (([Output('table-info', 'style'), Output('upload-block', 'is_open')],
+              [Input('upload-data', 'contents'),
+               Input('btn-open-upload-block', 'n_clicks')],
+              [State('upload-block', 'is_open')]), open_upload_block))
         self.val.append(
             (([Output('div-selected-data', 'children')],
              [Input('table', 'selected_cells'),

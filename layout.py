@@ -167,8 +167,10 @@ def layout():
                     dbc.Col([table_info()], width={"size": 4}),
                 ]),
             ]),
-            dbc.Card([
-                dbc.CardBody([
+
+            dbc.Modal([
+                dbc.ModalHeader("Загрузка файла"),
+                dbc.ModalBody([
                     dbc.Checklist(
                         options=[
                             {"label": "Использовать первую строку, как заголовки", "value": 1},
@@ -180,42 +182,44 @@ def layout():
                     dbc.Label('Разделитель:'),
                     dbc.Input(id='separator', value=';', type="text"),
                     file_uploarer()
-                ])
-            ], id='upload-block'),
-            dbc.Card([
-                dbc.CardBody([
-                    dcc.Dropdown(id='graph-type',
-                                 options=[{'label': 'Scatter', 'value': 'scatter'},
-                                          # {'label': 'Bar', 'value': 'bar'}
-                                          ],
-                                 value='scatter'),
-                    html.Hr(),
-                    dbc.Row([
-                        dbc.Col([dbc.Label('X:')]),
-                        dbc.Col([
-                            dcc.Dropdown(
-                                id='columns-x-selector',
-                                options=[],
-                                value=[],
-                                multi=False
-                            )
-                        ]),
-                    ]),
-                    html.Hr(),
-                    dbc.Row([
-                        dbc.Col([dbc.Label('Y:')]),
-                        dbc.Col([
-                            dcc.Dropdown(
-                                id='columns-y-selector',
-                                options=[],
-                                value=[],
-                                multi=True
-                            )
-                        ]),
-                    ]),
+                ]),
+            ],id='upload-block'
+            ),
 
-                ])
-            ], id='new-trace-block'),
+            dbc.Card([
+                    dbc.CardBody([
+                        dcc.Dropdown(id='graph-type',
+                                     options=[{'label': 'Scatter', 'value': 'scatter'},
+                                              # {'label': 'Bar', 'value': 'bar'}
+                                              ],
+                                     value='scatter'),
+                        html.Hr(),
+                        dbc.Row([
+                            dbc.Col([dbc.Label('X:')]),
+                            dbc.Col([
+                                dcc.Dropdown(
+                                    id='columns-x-selector',
+                                    options=[],
+                                    value=[],
+                                    multi=False
+                                )
+                            ]),
+                        ]),
+                        html.Hr(),
+                        dbc.Row([
+                            dbc.Col([dbc.Label('Y:')]),
+                            dbc.Col([
+                                dcc.Dropdown(
+                                    id='columns-y-selector',
+                                    options=[],
+                                    value=[],
+                                    multi=True
+                                )
+                            ]),
+                        ]),
+
+                    ])
+                ], id='new-trace-block'),
         ])
 
 
