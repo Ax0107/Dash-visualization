@@ -266,7 +266,9 @@ def show_table(n_open_upload, file_content, next_n, previous_n,
     elif file_name is not None or (dash.callback_context.triggered[0]['prop_id'] == 'table.page_current' and page):
         if df:
             df = get_changed_table(df, columns, ['save-all'], file_content, file_name,
-                                   first_column_as_headers, separator, p_size, page, created_columns, deleted_columns)
+                                   first_column_as_headers, separator, p_size, page-1, created_columns, deleted_columns,
+                                   for_next_page=True)
+            print('GOT DF: \n', df)
         else:
             # парсинг файла
             first_column_as_headers, separator = get_normal_settings(first_column_as_headers, separator)
@@ -423,7 +425,8 @@ def get_normal_settings(first_column_as_headers, separator):
 
 
 def get_changed_table(df, columns, save_options, file_content, file_name,
-                      first_column_as_headers, separator, p_size, page, created_columns=None, deleted_columns=None):
+                      first_column_as_headers, separator, p_size, page, created_columns=None, deleted_columns=None,
+                      for_next_page=False):
     """
     Отдаёт изменённую таблицу (с измен. колонками)
     :param df: текущая таблица
@@ -461,9 +464,9 @@ def get_changed_table(df, columns, save_options, file_content, file_name,
     else:
         deleted_columns = []
 
+    # TODO: Rewrote for edited column name
     for i in created_columns:
         new_columns[i] = 'CREATED'
-
     for d in deleted_columns:
         new_columns[d] = 'DELETED'
 
@@ -473,8 +476,11 @@ def get_changed_table(df, columns, save_options, file_content, file_name,
         if new_columns[i] == 'DELETED':
             continue
         elif new_columns[i] == 'CREATED':
+            if for_next_page:
+                df[i] = None
             df_file[i] = None
             changed_columns.append(i)
+            continue
         else:
             changed_columns.append(new_columns[i])
         old_columns.append(i)
@@ -484,16 +490,16 @@ def get_changed_table(df, columns, save_options, file_content, file_name,
         if columns[i] not in old_columns and columns[i] not in deleted_columns \
                 and columns[i] not in created_columns:
             new_columns[old_columns[i]] = columns[i]
-            print(changed_columns[i], '->', columns[i])
             changed_columns[i] = columns[i]
-
-    print(new_columns)
-
-    df = df[old_columns]
-    df.columns = changed_columns
+    print('COLUMNS:', old_columns, df.columns, changed_columns, old_columns + created_columns)
+    try:
+        df = df[old_columns + created_columns]
+        df.columns = changed_columns
+    except Exception:
+        df = df[changed_columns]
 
     if save_options and 'save-all' in save_options:
-        df_file = df_file[old_columns]
+        df_file = df_file[old_columns + created_columns]
         df_file.columns = changed_columns
         df_file.loc[int(page)*int(p_size):int(page)*int(p_size)+int(p_size)-1] = df
         df = df_file
